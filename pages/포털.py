@@ -6,6 +6,9 @@ import os
 from visibility_config import load_visibility, visible_agents, sort_by_order
 
 IS_DEPLOYED = os.environ.get("PORTAL_ENV") == "deploy"
+LOCAL_HOST = "192.168.14.222"
+DEPLOY_HOST = "192.168.10.169"
+AGENT_HOST = DEPLOY_HOST if IS_DEPLOYED else LOCAL_HOST
 
 
 def is_running(host, port):
@@ -139,8 +142,8 @@ for row_start in range(0, len(VISIBLE_AGENTS), 3):
 
     for j, agent in enumerate(row_agents):
         i = row_start + j
-        running = is_running(agent["host"], agent["port"])
-        url = f"http://{agent['host']}:{agent['port']}"
+        running = is_running(AGENT_HOST, agent["port"])
+        url = f"http://{AGENT_HOST}:{agent['port']}"
         badge = (
             '<span class="badge-on">● 실행 중</span>'
             if running
