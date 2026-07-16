@@ -1,0 +1,13 @@
+[server]
+address = "192.168.10.169"
+port = 9000
+headless = true
+fileWatcherType = "auto"
+
+[theme]
+base = "light"
+primaryColor = "#4F8EF7"
+backgroundColor = "#F0F2F8"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#1a1a2e"
+font = "sans serif"

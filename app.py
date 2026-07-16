@@ -1,0 +1,68 @@
+import streamlit as st
+import sys
+from pathlib import Path
+from dotenv import load_dotenv
+
+ROOT = Path(__file__).parent
+sys.path.append(str(ROOT))
+load_dotenv(ROOT / ".env")
+
+st.set_page_config(
+    page_title="AgentPortal · Proptier",
+    page_icon="🏢",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
+
+st.markdown("""
+<style>
+[data-testid="stSidebarNavLink"] {
+    font-size: 16px !important;
+    padding-top: 0.6rem !important;
+    padding-bottom: 0.6rem !important;
+}
+[data-testid="stSidebarNav"]::before {
+    content: "🏢  AgentPortal";
+    display: block;
+    font-size: 20px;
+    font-weight: 700;
+    padding: 1.2rem 1rem 1rem 1rem;
+    border-bottom: 1px solid rgba(255,255,255,0.15);
+    margin-bottom: 0.4rem;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
+def _get_client_ip() -> str:
+    try:
+        from streamlit.runtime.context import _get_client_context
+        ctx = _get_client_context()
+        return (ctx.remote_ip or "") if ctx else ""
+    except Exception:
+        pass
+    try:
+        from streamlit.runtime.scriptrunner import get_script_run_ctx
+        from streamlit.runtime import get_instance
+        ctx = get_script_run_ctx()
+        session = get_instance().get_session_info(ctx.session_id)
+        return session.client.request.remote_ip or ""
+    except Exception:
+        return ""
+
+
+from access_control import is_allowed
+
+_client_ip = _get_client_ip()
+st.session_state["_client_ip"] = _client_ip
+
+if not is_allowed(_client_ip):
+    st.markdown("## 🔒 접근 제한")
+    st.error(f"허용된 IP에서만 접근할 수 있습니다.\n\n현재 접속 IP: `{_client_ip}`")
+    st.stop()
+
+pg = st.navigation([
+    st.Page("pages/포털.py", title="포털", icon="🏢"),
+    st.Page("pages/설정.py", title="설정", icon="⚙️"),
+])
+pg.run()

@@ -1,0 +1,6 @@
+.env
+__pycache__/
+*.pyc
+lex-env/
+venv/
+.streamlit/secrets.toml
