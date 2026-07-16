@@ -3,10 +3,37 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
+from agents_data import AGENTS
+from visibility_config import load_visibility, save_visibility
+
 ROOT = Path(__file__).parent.parent
 load_dotenv(ROOT / ".env")
 
 st.title("⚙️ 설정")
+
+# ── 카드 노출 설정 ──────────────────────────────────────────
+st.subheader("🖥️ 카드 노출 설정")
+st.caption("로컬 화면과 배포(가상화 서버) 화면에 각각 독립적으로 노출 여부를 설정합니다.")
+
+_visibility = load_visibility()
+_new_visibility = {}
+
+for _agent in AGENTS:
+    _name = _agent["name"]
+    _current = _visibility.get(_name, {"visible_local": True, "visible_deploy": True})
+    col_label, col_local, col_deploy = st.columns([2, 1, 1])
+    with col_label:
+        st.markdown(f"**{_agent['icon']} {_name}** ({_agent['nickname']})")
+    with col_local:
+        _vl = st.checkbox("로컬 노출", value=_current.get("visible_local", True), key=f"vis_local_{_name}")
+    with col_deploy:
+        _vd = st.checkbox("배포 노출", value=_current.get("visible_deploy", True), key=f"vis_deploy_{_name}")
+    _new_visibility[_name] = {"visible_local": _vl, "visible_deploy": _vd}
+
+if _new_visibility != _visibility:
+    save_visibility(_new_visibility)
+
+st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
 # ── 서버 배포 ──────────────────────────────────────────────
 st.subheader("🚀 서버 배포")
