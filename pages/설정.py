@@ -98,7 +98,7 @@ def _start_streamlit(ssh, log):
     cmd = (
         f"sed -i 's/\\r$//' {script} 2>/dev/null || true; "
         f"chmod +x {script}; "
-        f"PORTAL_ROOT={_DEPLOY_REMOTE} PORTAL_PORT={_DEPLOY_APP_PORT} bash {script}"
+        f"PORTAL_ROOT={_DEPLOY_REMOTE} PORTAL_PORT={_DEPLOY_APP_PORT} PORTAL_ENV=deploy bash {script}"
     )
     out, err, rc = _ssh_run(ssh, cmd, timeout=30)
     text = (out + err).strip()
@@ -138,6 +138,12 @@ def _deploy():
             if local_sub.exists():
                 _sftp_upload_dir(sftp, local_sub, f"{_DEPLOY_REMOTE}/{dir_name}", log)
         log("✅ 코드 업로드 완료")
+
+        _vis_local = ROOT / "data" / "visibility_config.json"
+        if _vis_local.exists():
+            _sftp_mkdir_p(sftp, f"{_DEPLOY_REMOTE}/data")
+            sftp.put(str(_vis_local), f"{_DEPLOY_REMOTE}/data/visibility_config.json")
+            log("↑ data/visibility_config.json")
 
         sftp.close()
 
