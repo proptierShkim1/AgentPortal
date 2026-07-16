@@ -181,20 +181,20 @@ for agent in VISIBLE_AGENTS:
         else '<span class="btn-static">→  이동</span>'
     )
 
-    _card_html.append(f"""
-        <div class="agent-card" style="border-top-color:{agent['color']};">
-            <div class="card-icon">{agent['icon']}</div>
-            <div class="card-name">{agent['name']}</div>
-            <div class="card-nick">{agent['nickname']}</div>
-            <div class="card-desc">{agent['desc']}</div>
-            <div class="card-detail">{agent['detail']}</div>
-            {badge}
-            <div class="btn-row">
-                <span class="btn-static">▶  실행</span>
-                {move_btn}
-            </div>
-        </div>
-    """)
+    _card_html.append(
+        f'<div class="agent-card" style="border-top-color:{agent["color"]};">'
+        f'<div class="card-icon">{agent["icon"]}</div>'
+        f'<div class="card-name">{agent["name"]}</div>'
+        f'<div class="card-nick">{agent["nickname"]}</div>'
+        f'<div class="card-desc">{agent["desc"]}</div>'
+        f'<div class="card-detail">{agent["detail"]}</div>'
+        f'{badge}'
+        f'<div class="btn-row">'
+        f'<span class="btn-static">▶  실행</span>'
+        f'{move_btn}'
+        f'</div>'
+        f'</div>'
+    )
 
 st.markdown(f'<div class="agent-grid">{"".join(_card_html)}</div>', unsafe_allow_html=True)
 
