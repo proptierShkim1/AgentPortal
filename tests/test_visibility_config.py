@@ -55,3 +55,24 @@ def test_visible_agents_defaults_to_visible_when_missing_from_config():
     agents = [{"name": "NewAgent"}]
     result = vc.visible_agents(agents, {}, is_deployed=False)
     assert [a["name"] for a in result] == ["NewAgent"]
+
+
+def test_sort_by_order_reorders_by_explicit_order_value():
+    agents = [{"name": "A"}, {"name": "B"}, {"name": "C"}]
+    visibility = {"A": {"order": 2}, "B": {"order": 0}, "C": {"order": 1}}
+    result = vc.sort_by_order(agents, visibility)
+    assert [a["name"] for a in result] == ["B", "C", "A"]
+
+
+def test_sort_by_order_defaults_missing_agent_to_original_position():
+    agents = [{"name": "A"}, {"name": "B"}, {"name": "C"}]
+    visibility = {"A": {"order": 5}}
+    result = vc.sort_by_order(agents, visibility)
+    assert [a["name"] for a in result] == ["B", "C", "A"]
+
+
+def test_sort_by_order_is_stable_for_duplicate_order_values():
+    agents = [{"name": "A"}, {"name": "B"}, {"name": "C"}]
+    visibility = {"A": {"order": 0}, "B": {"order": 0}, "C": {"order": 0}}
+    result = vc.sort_by_order(agents, visibility)
+    assert [a["name"] for a in result] == ["A", "B", "C"]

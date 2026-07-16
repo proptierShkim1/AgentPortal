@@ -51,7 +51,7 @@ def _get_client_ip() -> str:
         return ""
 
 
-from access_control import is_allowed
+from access_control import is_allowed, is_admin, can_view_history
 
 _client_ip = _get_client_ip()
 st.session_state["_client_ip"] = _client_ip
@@ -61,8 +61,11 @@ if not is_allowed(_client_ip):
     st.error(f"허용된 IP에서만 접근할 수 있습니다.\n\n현재 접속 IP: `{_client_ip}`")
     st.stop()
 
-pg = st.navigation([
-    st.Page("pages/포털.py", title="포털", icon="🏢"),
-    st.Page("pages/설정.py", title="설정", icon="⚙️"),
-])
+_pages = [st.Page("pages/포털.py", title="포털", icon="🏢")]
+if is_admin(_client_ip):
+    _pages.append(st.Page("pages/설정.py", title="설정", icon="⚙️"))
+if can_view_history(_client_ip):
+    _pages.append(st.Page("pages/버전이력.py", title="버전 이력", icon="📜"))
+
+pg = st.navigation(_pages)
 pg.run()

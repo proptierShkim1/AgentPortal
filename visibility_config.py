@@ -22,3 +22,11 @@ def save_visibility(cfg: dict) -> None:
 def visible_agents(agents: list, visibility: dict, is_deployed: bool) -> list:
     key = "visible_deploy" if is_deployed else "visible_local"
     return [a for a in agents if visibility.get(a["name"], {}).get(key, True)]
+
+
+def sort_by_order(agents: list, visibility: dict) -> list:
+    ordered = sorted(
+        enumerate(agents),
+        key=lambda pair: visibility.get(pair[1]["name"], {}).get("order", pair[0]),
+    )
+    return [agent for _, agent in ordered]

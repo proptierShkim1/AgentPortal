@@ -3,7 +3,7 @@ import socket
 
 from agents_data import AGENTS
 import os
-from visibility_config import load_visibility, visible_agents
+from visibility_config import load_visibility, visible_agents, sort_by_order
 
 IS_DEPLOYED = os.environ.get("PORTAL_ENV") == "deploy"
 
@@ -130,7 +130,8 @@ with col_btn:
 st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
 # ── Cards ────────────────────────────────────────────────────────────────────
-VISIBLE_AGENTS = visible_agents(AGENTS, load_visibility(), IS_DEPLOYED)
+_visibility = load_visibility()
+VISIBLE_AGENTS = sort_by_order(visible_agents(AGENTS, _visibility, IS_DEPLOYED), _visibility)
 
 for row_start in range(0, len(VISIBLE_AGENTS), 3):
     row_agents = VISIBLE_AGENTS[row_start:row_start + 3]

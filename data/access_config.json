@@ -1,5 +1,5 @@
 {
   "allowed_ips": [
-    {"ip": "192.168.14.222", "name": "성환"}
+    {"ip": "192.168.14.222", "name": "성환", "is_admin": true, "can_view_history": true}
   ]
 }
