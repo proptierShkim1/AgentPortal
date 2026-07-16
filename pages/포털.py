@@ -28,7 +28,7 @@ st.markdown("""
     .block-container {
         padding-top: 2.5rem;
         padding-bottom: 3rem;
-        max-width: 1100px;
+        max-width: 1650px;
     }
 
     .portal-header {
@@ -66,6 +66,13 @@ st.markdown("""
         font-weight: 500;
     }
 
+    .agent-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, 300px);
+        justify-content: center;
+        gap: 28px;
+    }
+
     .agent-card {
         background: #ffffff;
         border-radius: 20px;
@@ -76,6 +83,8 @@ st.markdown("""
         border-top-style: solid;
         transition: box-shadow 0.2s ease, transform 0.2s ease;
         min-height: 250px;
+        display: flex;
+        flex-direction: column;
     }
     .agent-card:hover {
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.13);
@@ -85,7 +94,28 @@ st.markdown("""
     .card-name    { font-size: 1.35rem; font-weight: 700; color: #1a1a2e; }
     .card-nick    { font-size: 0.85rem; color: #7a85a0; margin-bottom: 0.65rem; }
     .card-desc    { font-size: 0.92rem; color: #2e3a50; line-height: 1.6; margin-bottom: 0.4rem; font-weight: 500; }
-    .card-detail  { font-size: 0.8rem; color: #6b7591; margin-bottom: 1.25rem; }
+    .card-detail  { font-size: 0.8rem; color: #6b7591; margin-bottom: 1.25rem; flex-grow: 1; }
+
+    .btn-row { display: flex; gap: 8px; margin-top: auto; }
+    .btn-static, .btn-link {
+        flex: 1;
+        padding: 8px 0;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-align: center;
+    }
+    .btn-static {
+        background: #f0f1f5;
+        color: #aab1c0;
+        cursor: not-allowed;
+    }
+    .btn-link {
+        background: #4F8EF7;
+        color: #ffffff;
+        text-decoration: none;
+    }
+    .btn-link:hover { background: #3d7ae0; }
 
     .badge-on {
         display: inline-block;
@@ -136,47 +166,37 @@ st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 _visibility = load_visibility()
 VISIBLE_AGENTS = sort_by_order(visible_agents(AGENTS, _visibility, IS_DEPLOYED), _visibility)
 
-for row_start in range(0, len(VISIBLE_AGENTS), 3):
-    row_agents = VISIBLE_AGENTS[row_start:row_start + 3]
-    cols = st.columns(3, gap="large")
+_card_html = []
+for agent in VISIBLE_AGENTS:
+    running = is_running(AGENT_HOST, agent["port"])
+    url = f"http://{AGENT_HOST}:{agent['port']}"
+    badge = (
+        '<span class="badge-on">● 실행 중</span>'
+        if running
+        else '<span class="badge-off">● 중지됨</span>'
+    )
+    move_btn = (
+        f'<a class="btn-link" href="{url}" target="_blank">→  이동</a>'
+        if running
+        else '<span class="btn-static">→  이동</span>'
+    )
 
-    for j, agent in enumerate(row_agents):
-        i = row_start + j
-        running = is_running(AGENT_HOST, agent["port"])
-        url = f"http://{AGENT_HOST}:{agent['port']}"
-        badge = (
-            '<span class="badge-on">● 실행 중</span>'
-            if running
-            else '<span class="badge-off">● 중지됨</span>'
-        )
+    _card_html.append(f"""
+        <div class="agent-card" style="border-top-color:{agent['color']};">
+            <div class="card-icon">{agent['icon']}</div>
+            <div class="card-name">{agent['name']}</div>
+            <div class="card-nick">{agent['nickname']}</div>
+            <div class="card-desc">{agent['desc']}</div>
+            <div class="card-detail">{agent['detail']}</div>
+            {badge}
+            <div class="btn-row">
+                <span class="btn-static">▶  실행</span>
+                {move_btn}
+            </div>
+        </div>
+    """)
 
-        with cols[j]:
-            st.markdown(
-                f"""
-                <div class="agent-card" style="border-top-color:{agent['color']};">
-                    <div class="card-icon">{agent['icon']}</div>
-                    <div class="card-name">{agent['name']}</div>
-                    <div class="card-nick">{agent['nickname']}</div>
-                    <div class="card-desc">{agent['desc']}</div>
-                    <div class="card-detail">{agent['detail']}</div>
-                    {badge}
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-            st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
-
-            b1, b2 = st.columns(2)
-            with b1:
-                st.button("▶  실행", key=f"launch_{i}", use_container_width=True, disabled=True)
-            with b2:
-                if running:
-                    st.link_button("→  이동", url, use_container_width=True)
-                else:
-                    st.button("→  이동", key=f"open_{i}", use_container_width=True, disabled=True)
-
-    st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
+st.markdown(f'<div class="agent-grid">{"".join(_card_html)}</div>', unsafe_allow_html=True)
 
 # ── Footer ────────────────────────────────────────────────────────────────────
 st.markdown(
