@@ -1,0 +1,9 @@
+{
+  "LexAgent": {"visible_local": true, "visible_deploy": true},
+  "PolicyAgent": {"visible_local": true, "visible_deploy": true},
+  "GosiAgent": {"visible_local": true, "visible_deploy": true},
+  "ModelTLab": {"visible_local": false, "visible_deploy": false},
+  "gov_kr": {"visible_local": false, "visible_deploy": false},
+  "SonarGuard": {"visible_local": false, "visible_deploy": false},
+  "AIpartner(세무)": {"visible_local": false, "visible_deploy": false}
+}
