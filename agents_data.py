@@ -72,7 +72,7 @@ AGENTS = [
         "detail": "세무법안 관련 수집 및 분석",
         "host": "192.168.14.222",
         "port": 9101,
-        "path": r"C:\Users\USER\Desktop\Project Agent\pwc_poc",
+        "path": r"C:\Users\USER\Desktop\Project Agent\ProptierAI",
         "icon": "🤝",
         "color": "#8B5CF6",
     },
