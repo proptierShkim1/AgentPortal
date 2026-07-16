@@ -2,6 +2,10 @@ import streamlit as st
 import socket
 
 from agents_data import AGENTS
+import os
+from visibility_config import load_visibility, visible_agents
+
+IS_DEPLOYED = os.environ.get("PORTAL_ENV") == "deploy"
 
 
 def is_running(host, port):
@@ -126,7 +130,7 @@ with col_btn:
 st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
 # ── Cards ────────────────────────────────────────────────────────────────────
-VISIBLE_AGENTS = [a for a in AGENTS if a.get("visible", True)]
+VISIBLE_AGENTS = visible_agents(AGENTS, load_visibility(), IS_DEPLOYED)
 
 for row_start in range(0, len(VISIBLE_AGENTS), 3):
     row_agents = VISIBLE_AGENTS[row_start:row_start + 3]
