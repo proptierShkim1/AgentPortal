@@ -76,4 +76,15 @@ AGENTS = [
         "icon": "🤝",
         "color": "#8B5CF6",
     },
+    {
+        "name": "MarketInsight",
+        "nickname": "마인",
+        "desc": "시장 트렌드 분석",
+        "detail": "브랜드 키워드, 검색 트렌드, 경쟁사 동향 등 시장 데이터 통합 분석",
+        "host": "192.168.14.222",
+        "port": 3100,
+        "path": r"C:\Users\USER\Desktop\Project Agent\MarketInsight",
+        "icon": "📈",
+        "color": "#00B8A9",
+    },
 ]
