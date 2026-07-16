@@ -96,7 +96,7 @@ st.markdown("""
     .card-desc    { font-size: 0.92rem; color: #2e3a50; line-height: 1.6; margin-bottom: 0.4rem; font-weight: 500; }
     .card-detail  { font-size: 0.8rem; color: #6b7591; margin-bottom: 1.25rem; flex-grow: 1; }
 
-    .btn-row { display: flex; gap: 8px; margin-top: auto; }
+    .btn-row { display: flex; gap: 12px; margin-top: auto; padding-top: 12px; }
     .btn-static, .btn-link {
         flex: 1;
         padding: 8px 0;
