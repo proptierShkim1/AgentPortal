@@ -4,7 +4,6 @@ import socket
 from agents_data import AGENTS
 import os
 from visibility_config import load_visibility, visible_agents, sort_by_order
-from layout_config import load_columns, save_columns, VALID_COLUMNS
 
 IS_DEPLOYED = os.environ.get("PORTAL_ENV") == "deploy"
 LOCAL_HOST = "192.168.14.222"
@@ -125,18 +124,8 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ── Refresh / 카드 배열 ────────────────────────────────────────────────────
-_, col_layout, col_btn = st.columns([5, 2, 1])
-with col_layout:
-    _saved_columns = load_columns()
-    _num_columns = st.selectbox(
-        "카드 배열", VALID_COLUMNS,
-        index=VALID_COLUMNS.index(_saved_columns),
-        format_func=lambda n: f"{n}열",
-        key="portal_columns", label_visibility="collapsed",
-    )
-    if _num_columns != _saved_columns:
-        save_columns(_num_columns)
+# ── Refresh ──────────────────────────────────────────────────────────────────
+_, col_btn = st.columns([6, 1])
 with col_btn:
     if st.button("↺  새로고침", use_container_width=True):
         st.rerun()
@@ -147,9 +136,9 @@ st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 _visibility = load_visibility()
 VISIBLE_AGENTS = sort_by_order(visible_agents(AGENTS, _visibility, IS_DEPLOYED), _visibility)
 
-for row_start in range(0, len(VISIBLE_AGENTS), _num_columns):
-    row_agents = VISIBLE_AGENTS[row_start:row_start + _num_columns]
-    cols = st.columns(_num_columns, gap="large")
+for row_start in range(0, len(VISIBLE_AGENTS), 3):
+    row_agents = VISIBLE_AGENTS[row_start:row_start + 3]
+    cols = st.columns(3, gap="large")
 
     for j, agent in enumerate(row_agents):
         i = row_start + j
