@@ -14,7 +14,7 @@ AGENTS = [
         "nickname": "폴리",
         "desc": "개인정보 처리방침 분석",
         "detail": "처리방침 문서 검토 및 체크리스트 자동화",
-        "port": 8502,
+        "port": 9002,
         "path": r"C:\Users\USER\Desktop\Project Agent\PolicyAgent",
         "icon": "🔐",
         "color": "#43C59E",
