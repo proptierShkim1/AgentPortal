@@ -17,26 +17,26 @@
   "ModelTLab": {
     "visible_local": true,
     "visible_deploy": false,
-    "order": 3
+    "order": 10
   },
   "gov_kr": {
     "visible_local": true,
     "visible_deploy": false,
-    "order": 4
+    "order": 11
   },
   "SonarGuard": {
     "visible_local": true,
     "visible_deploy": false,
-    "order": 5
+    "order": 12
   },
   "AIpartner(세무)": {
     "visible_local": true,
     "visible_deploy": false,
-    "order": 6
+    "order": 3
   },
   "MarketInsight": {
     "visible_local": true,
     "visible_deploy": false,
-    "order": 7
+    "order": 4
   }
 }
