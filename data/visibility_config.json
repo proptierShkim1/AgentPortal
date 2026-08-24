@@ -38,5 +38,15 @@
     "visible_local": true,
     "visible_deploy": false,
     "order": 4
+  },
+  "Proptier AI News": {
+    "visible_local": true,
+    "visible_deploy": true,
+    "order": 5
+  },
+  "DailyBot(6F)": {
+    "visible_local": true,
+    "visible_deploy": true,
+    "order": 6
   }
 }

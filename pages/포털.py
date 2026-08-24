@@ -110,12 +110,12 @@ st.markdown("""
         color: #aab1c0;
         cursor: not-allowed;
     }
-    .btn-link {
-        background: #4F8EF7;
-        color: #ffffff;
-        text-decoration: none;
+    .btn-link, .btn-link:hover, .btn-link:visited {
+        background: #e4e7ef;
+        color: #3d4560;
+        text-decoration: none !important;
     }
-    .btn-link:hover { background: #3d7ae0; }
+    .btn-link:hover { background: #d6dae8; }
 
     .badge-on {
         display: inline-block;
