@@ -19,18 +19,6 @@ def save_config(cfg: dict):
     CONFIG_PATH.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def is_allowed(ip: str) -> bool:
-    allowed_ips = load_config().get("allowed_ips", [])
-    if not allowed_ips:
-        return True
-    if not ip:
-        return True
-    return any(
-        (entry["ip"] if isinstance(entry, dict) else entry) == ip
-        for entry in allowed_ips
-    )
-
-
 def is_admin(ip: str) -> bool:
     """관리자로 등록된 IP인지 확인. 관리자로 등록된 IP가 하나도 없으면 모두 허용
     (부트스트랩 모드 — 최초 1명이 설정 페이지에서 자신을 관리자로 지정할 수 있어야 함)."""

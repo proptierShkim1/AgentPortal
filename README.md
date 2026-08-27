@@ -26,6 +26,7 @@ Proptier의 AI 에이전트들을 한 화면에서 확인하고 이동할 수 �
 | MarketInsight | 마인 | 시장 트렌드 분석 | 3100 |
 | Proptier AI News | 프니 | 부동산 AI 뉴스 | 7000 |
 | DailyBot(6F) | 데일리봇 | 6층 일일 업무 봇 | 7001 |
+| AI RADAR | 에리 | 키워드 기반 AI 정보 활용 에이전트 | 4001 |
 
 포트는 로컬/배포 환경 공통이며, host만 환경에 따라 바뀝니다(아래 "로컬 vs 배포" 참고). 카드별 노출 여부(로컬/배포 독립)와 화면상 순서는 ⚙️ 설정 페이지에서 관리합니다.
 
@@ -39,16 +40,19 @@ Proptier의 AI 에이전트들을 한 화면에서 확인하고 이동할 수 �
 
 ```
 AgentPortal/
-├── app.py                   # 진입점 — IP 접근 제어 후 페이지 네비게이션 구성
+├── app.py                   # 진입점 — 관리자/이력열람 권한에 따라 페이지 네비게이션 구성 + 접속 로그 기록
 ├── agents_data.py           # 관리 대상 에이전트 목록(AGENTS)
-├── access_control.py        # IP 허용 목록 + 관리자/이력열람 권한 판별
+├── access_control.py        # IP 등록 목록 기반 관리자/이력열람 권한 판별
+├── access_log.py            # 접속(페이지 이동) 로그 기록/조회 로직
 ├── visibility_config.py     # 카드 노출(로컬/배포)·순서 설정 로직
 ├── pages/
-│   ├── 포털.py               # 메인 대시보드 (에이전트 카드 그리드)
+│   ├── 포털.py               # 메인 대시보드 (에이전트 카드 그리드) — 누구나 접근 가능
 │   ├── 설정.py               # 카드 노출/순서 편집 + 서버 배포(관리자 전용)
+│   ├── 로그.py               # 접속 IP/행위 로그 뷰어 (검색·필터·페이지네이션, 관리자 전용)
 │   └── 버전이력.py            # git 커밋 로그 뷰어(이력 열람 권한자 전용)
 ├── data/
-│   ├── access_config.json   # IP 허용 목록 (git에 커밋됨, 실제 운영값)
+│   ├── access_config.json   # IP 등록 목록 (git에 커밋됨, 실제 운영값)
+│   ├── access_log.jsonl     # 접속 로그 (gitignore 대상, 로컬 전용)
 │   └── visibility_config.json
 ├── scripts/start_server.sh  # 배포 서버에서 Streamlit을 기동하는 스크립트
 ├── .streamlit/config.toml   # 배포 서버 전용 실행 설정
@@ -89,12 +93,14 @@ python -m streamlit run app.py --server.address 192.168.14.222 --server.port 900
 
 ## 접근 권한
 
-`data/access_config.json`에 등록된 IP만 접속할 수 있으며, IP별로 아래 두 권한을 독립적으로 부여합니다.
+🏢 포털(에이전트 카드) 화면은 누구나 접속·사용할 수 있습니다. `data/access_config.json`에 등록된 IP에는 아래 두 권한을 독립적으로 부여할 수 있고, 이 권한이 있어야만 보이는 화면이 따로 있습니다.
 
-- `is_admin` — ⚙️ 설정 페이지(카드 노출/순서 편집, 서버 배포) 접근 가능
+- `is_admin` — ⚙️ 설정 페이지(카드 노출/순서 편집, 서버 배포), 🧾 로그 페이지(접속 IP/행위 조회) 접근 가능
 - `can_view_history` — 📜 버전 이력 페이지(git 커밋 로그) 접근 가능
 
 등록된 IP가 하나도 없는 초기 상태에서는 전체 허용되는 부트스트랩 모드로 동작해, 최초 1명이 설정 페이지에서 자기 자신에게 권한을 부여할 수 있습니다.
+
+🧾 로그 페이지는 포털에 접속할 때마다 IP·(등록돼 있다면) 이름·이동한 화면을 `data/access_log.jsonl`에 기록하고, IP/이름 검색·화면 필터·페이지네이션이 있는 목록으로 보여줍니다.
 
 ## 배포 방법
 

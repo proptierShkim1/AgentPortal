@@ -48,5 +48,10 @@
     "visible_local": true,
     "visible_deploy": true,
     "order": 6
+  },
+  "AI RADAR": {
+    "visible_local": true,
+    "visible_deploy": true,
+    "order": 7
   }
 }

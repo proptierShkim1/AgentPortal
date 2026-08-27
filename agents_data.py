@@ -99,4 +99,14 @@ AGENTS = [
         "icon": "📅",
         "color": "#FFC93C",
     },
+    {
+        "name": "AI RADAR",
+        "nickname": "에리",
+        "desc": "키워드 기반 AI 정보 활용 에이전트",
+        "detail": "키워드 기반 AI 뉴스 수집·요약·브리핑 및 PDF 보고서 생성",
+        "port": 4001,
+        "path": r"C:\Users\USER\Desktop\Project Agent\AiAxRadar",
+        "icon": "📡",
+        "color": "#2ECC71",
+    },
 ]
