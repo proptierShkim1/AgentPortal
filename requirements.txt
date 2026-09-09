@@ -3,3 +3,6 @@ python-dotenv
 paramiko
 anthropic>=0.109
 httpx
+# 상한은 GosiAgent의 제약(<3.0.0)에 맞춘다 — 로컬은 시스템 파이썬을 공유하므로
+# 여기서 상한 없이 선언하면 pip install 때 3.x로 올라가 고시가 깨질 수 있다.
+google-genai>=1.0.0,<3.0.0
