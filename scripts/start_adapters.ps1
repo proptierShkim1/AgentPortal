@@ -40,10 +40,14 @@ foreach ($key in $repos.Keys) {
 
     if (-not (Test-Path $apiPath)) { Write-Host "! $key : api.py 없음 ($apiPath)"; continue }
 
-    Write-Host "+ $key : 포트 $($entry.api_port) 로 시작"
-    Start-Process -FilePath $python `
-        -ArgumentList @($apiPath, "--host", "192.168.14.222", "--port", "$($entry.api_port)") `
-        -WorkingDirectory $repoPath
+    try {
+        Start-Process -FilePath $python `
+            -ArgumentList @($apiPath, "--host", "192.168.14.222", "--port", "$($entry.api_port)") `
+            -WorkingDirectory $repoPath
+        Write-Host "+ $key : 포트 $($entry.api_port) 로 시작"
+    } catch {
+        Write-Host "! $key : 실행 실패 ($($_.Exception.Message))"
+    }
 }
 
 Write-Host ""
