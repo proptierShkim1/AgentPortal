@@ -48,6 +48,25 @@ def test_dedupe_citations_ignores_failed_results():
     assert synth.dedupe_citations(results) == []
 
 
+def test_dedupe_citations_ignores_non_dict_elements():
+    results = [
+        AgentResult(agent="lex", ok=True, answer="a",
+                    citations=["법령명 문자열만 옴", _law("개인정보보호법", "제15조")]),
+    ]
+    deduped = synth.dedupe_citations(results)
+    assert deduped == [_law("개인정보보호법", "제15조")]
+
+
+def test_synthesize_with_string_citations_does_not_raise():
+    results = [
+        AgentResult(agent="lex", ok=True, answer="렉스 답변", citations=["문자열", "또다른 문자열"]),
+    ]
+    out = synth.synthesize("질문", results, labels=LABELS,
+                           call_text=_fake_call_text("불려선 안 됨"))
+    assert out["mode"] == "single"
+    assert out["citations"] == []
+
+
 def test_synthesize_all_failed_lists_reasons_and_does_not_call_llm():
     calls = []
     results = [

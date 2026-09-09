@@ -161,6 +161,63 @@ def test_ask_agents_skips_pick_missing_from_registry():
     assert [r.agent for r in results] == ["lex"]
 
 
+def test_ask_agent_recovers_from_non_numeric_elapsed_ms():
+    def handler(request):
+        return httpx.Response(200, json=_ok_body("답변") | {"elapsed_ms": "12ms"})
+
+    result = ex.ask_agent("lex", AGENTS["lex"], "질문", [], HOST, _client(handler))
+    # 계약을 어긴 elapsed_ms 하나 때문에 예외가 나면 안 된다 — 로컬 측정치로
+    # 대체하거나 깔끔한 ok=False로 떨어져야 한다.
+    assert isinstance(result.elapsed_ms, int)
+    if result.ok:
+        assert result.answer == "답변"
+    else:
+        assert result.error
+
+
+def test_ask_agent_treats_non_list_citations_as_empty():
+    def handler(request):
+        return httpx.Response(200, json=_ok_body("답변", citations=["법령명만 문자열로 옴"]))
+
+    result = ex.ask_agent("lex", AGENTS["lex"], "질문", [], HOST, _client(handler))
+    assert result.ok is True
+    assert result.citations == []
+
+
+def test_ask_agent_treats_list_grounding_as_empty_dict():
+    def handler(request):
+        return httpx.Response(200, json=_ok_body("답변", grounding=["리스트로 옴"]))
+
+    result = ex.ask_agent("lex", AGENTS["lex"], "질문", [], HOST, _client(handler))
+    assert result.ok is True
+    assert result.grounding == {}
+
+
+def test_ask_agent_treats_non_string_answer_as_empty_string():
+    def handler(request):
+        return httpx.Response(200, json=_ok_body(123))
+
+    result = ex.ask_agent("lex", AGENTS["lex"], "질문", [], HOST, _client(handler))
+    assert result.ok is True
+    assert result.answer == ""
+
+
+def test_ask_agents_isolates_off_contract_body_from_healthy_agent():
+    """가장 중요한 회귀 테스트 — 한 어댑터가 계약을 어긴 200 응답을 줘도
+    ThreadPoolExecutor의 f.result()가 예외를 재발생시켜 건강한 다른 에이전트의
+    결과까지 함께 날려선 안 된다."""
+    def handler(request):
+        if request.url.port == 9501:
+            return httpx.Response(200, json=_ok_body("렉스", citations="이건 리스트가 아님"))
+        return httpx.Response(200, json=_ok_body("폴리는 정상"))
+
+    picks = [{"agent": "lex", "reason": ""}, {"agent": "policy", "reason": ""}]
+    results = ex.ask_agents(picks, AGENTS, "질문", [], HOST, _client(handler))
+    by_key = {r.agent: r for r in results}
+    assert by_key["policy"].ok is True
+    assert by_key["policy"].answer == "폴리는 정상"
+
+
 def test_check_health_returns_ok_and_corpus_counts():
     def handler(request):
         assert request.url.path == "/health"

@@ -54,15 +54,42 @@ def ask_agent(key: str, entry: dict, question: str, chat_history: list,
         return AgentResult(agent=key, ok=False, error="응답이 JSON 객체가 아닙니다.",
                            elapsed_ms=_ms_since(started))
 
-    return AgentResult(
-        agent=key,
-        ok=True,
-        answer=body.get("answer") or "",
-        sufficient=bool(body.get("sufficient")),
-        citations=body.get("citations") or [],
-        grounding=body.get("grounding") or {},
-        elapsed_ms=int(body.get("elapsed_ms") or _ms_since(started)),
-    )
+    # 여기부터는 200 응답을 받은 뒤 계약대로 정리하는 것뿐이지만, 어댑터가
+    # 계약을 어긴 필드를 보낼 수 있다 (예: elapsed_ms에 "12ms"). 하나라도
+    # 실패해서 예외가 새 나가면 ThreadPoolExecutor의 f.result()가 그것을
+    # 재발생시켜 이 결과 하나 때문에 나머지 정상 에이전트들의 결과까지
+    # 전부 날아간다 — 그래서 이 아래는 예외를 던지지 않는다.
+    try:
+        answer = body.get("answer")
+        answer = answer if isinstance(answer, str) else ""
+
+        sufficient = bool(body.get("sufficient"))
+
+        raw_citations = body.get("citations")
+        citations = ([c for c in raw_citations if isinstance(c, dict)]
+                     if isinstance(raw_citations, list) else [])
+
+        raw_grounding = body.get("grounding")
+        grounding = raw_grounding if isinstance(raw_grounding, dict) else {}
+
+        raw_elapsed = body.get("elapsed_ms")
+        try:
+            elapsed_ms = int(raw_elapsed) if raw_elapsed is not None else _ms_since(started)
+        except (TypeError, ValueError):
+            elapsed_ms = _ms_since(started)
+
+        return AgentResult(
+            agent=key,
+            ok=True,
+            answer=answer,
+            sufficient=sufficient,
+            citations=citations,
+            grounding=grounding,
+            elapsed_ms=elapsed_ms,
+        )
+    except Exception as e:
+        return AgentResult(agent=key, ok=False, error=f"응답 형식 오류: {type(e).__name__}: {e}",
+                           elapsed_ms=_ms_since(started))
 
 
 def ask_agents(picks: list, agents: dict, question: str, chat_history: list,

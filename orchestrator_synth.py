@@ -36,6 +36,8 @@ def dedupe_citations(results: list) -> list:
         if not result.ok:
             continue
         for citation in result.citations:
+            if not isinstance(citation, dict):
+                continue
             key = citation_key(citation)
             if key in seen:
                 continue
