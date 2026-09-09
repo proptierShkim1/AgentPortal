@@ -162,11 +162,15 @@ def _deploy():
             out, err, rc = _ssh_run(ssh, f"python3 -m venv {_DEPLOY_REMOTE}/venv", timeout=60)
             log("✅ venv 생성" if rc == 0 else f"❌ venv 실패: {err.strip()}")
 
-            pip = f"{_DEPLOY_REMOTE}/venv/bin/pip"
-            req = f"{_DEPLOY_REMOTE}/requirements.txt"
-            log("패키지 설치 중...")
-            out, err, rc = _ssh_run(ssh, f"{pip} install --upgrade pip && {pip} install -r {req}", timeout=300)
-            log("✅ 패키지 설치 완료" if rc == 0 else f"❌ 설치 실패:\n{err.strip()[-400:]}")
+        # venv 생성 여부와 무관하게 매 배포마다 실행한다 — 기존 서버에 새
+        # 의존성(예: anthropic, httpx)이 추가된 브랜치를 배포하면 첫 배포가
+        # 아니라서 이 단계를 건너뛰고, 그러면 venv에 새 패키지가 없어 해당
+        # 페이지가 ModuleNotFoundError로 죽는다.
+        pip = f"{_DEPLOY_REMOTE}/venv/bin/pip"
+        req = f"{_DEPLOY_REMOTE}/requirements.txt"
+        log("패키지 설치 중...")
+        out, err, rc = _ssh_run(ssh, f"{pip} install --upgrade pip && {pip} install -r {req}", timeout=300)
+        log("✅ 패키지 설치 완료" if rc == 0 else f"❌ 설치 실패:\n{err.strip()[-400:]}")
 
         log("\n--- Streamlit 기동 ---")
         _start_streamlit(ssh, log)
@@ -180,7 +184,7 @@ if not _DEPLOY_HOST:
     st.info(".env에 DEPLOY_HOST 등 배포 설정이 없습니다.")
 else:
     st.caption(f"대상: `{_DEPLOY_USER}@{_DEPLOY_HOST}:{_DEPLOY_APP_PORT}` (SSH: {_DEPLOY_SSH_PORT}) → `{_DEPLOY_REMOTE}`")
-    st.caption("최초 배포 시 venv 생성 및 패키지 설치 포함 / 이후 업데이트는 코드만 전송")
+    st.caption("최초 배포 시 venv 생성 포함 / 패키지 설치는 매 배포마다 실행")
 
     col_dep, col_svc = st.columns(2)
     with col_dep:
