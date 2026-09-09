@@ -43,3 +43,19 @@ def enabled_agents(registry: dict) -> dict:
 
 def agent_url(entry: dict, host: str, path: str = "/ask") -> str:
     return f"http://{host}:{entry['api_port']}{path}"
+
+
+def agent_labels(agents: dict, meta_agents: list) -> dict:
+    """레지스트리 키 -> 화면 표시 라벨. agents_data.AGENTS의 아이콘·닉네임을
+    agent_name으로 조인해 재사용한다. AGENTS에 없는 agent_name이면 그 이름을
+    그대로 라벨로 쓴다 — 빈 라벨이 화면에 나가면 어느 에이전트가 답했는지
+    알 수 없게 된다."""
+    meta = {a["name"]: a for a in meta_agents}
+    labels = {}
+    for key, entry in agents.items():
+        name = entry.get("agent_name", "")
+        info = meta.get(name, {})
+        icon = info.get("icon", "")
+        nickname = info.get("nickname") or name
+        labels[key] = f"{icon} {nickname}".strip()
+    return labels

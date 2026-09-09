@@ -82,3 +82,20 @@ def test_agent_url_builds_ask_endpoint_by_default():
 def test_agent_url_accepts_explicit_path():
     url = reg.agent_url(_entry(), "192.168.10.169", path="/health")
     assert url == "http://192.168.10.169:9501/health"
+
+
+def test_agent_labels_matches_meta_by_agent_name():
+    agents = {"lex": _entry(agent_name="LexAgent")}
+    meta_agents = [{"name": "LexAgent", "nickname": "렉스", "icon": "⚖️"}]
+    assert reg.agent_labels(agents, meta_agents) == {"lex": "⚖️ 렉스"}
+
+
+def test_agent_labels_falls_back_to_raw_agent_name_when_no_meta_match():
+    agents = {"lex": _entry(agent_name="UnknownAgent")}
+    assert reg.agent_labels(agents, []) == {"lex": "UnknownAgent"}
+
+
+def test_agent_labels_strips_leading_space_when_icon_missing():
+    agents = {"lex": _entry(agent_name="LexAgent")}
+    meta_agents = [{"name": "LexAgent", "nickname": "렉스"}]
+    assert reg.agent_labels(agents, meta_agents) == {"lex": "렉스"}
