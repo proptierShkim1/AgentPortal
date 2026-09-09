@@ -59,6 +59,7 @@ st.session_state["_client_ip"] = _client_ip
 
 _pages = [st.Page("pages/포털.py", title="포털", icon="🏢")]
 if is_admin(_client_ip):
+    _pages.append(st.Page("pages/오케스트레이터.py", title="오케스트레이터", icon="🎛️"))
     _pages.append(st.Page("pages/설정.py", title="설정", icon="⚙️"))
     _pages.append(st.Page("pages/로그.py", title="로그", icon="🧾"))
 if can_view_history(_client_ip):
