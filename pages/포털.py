@@ -2,13 +2,11 @@ import streamlit as st
 import socket
 
 from agents_data import AGENTS
-import os
 from visibility_config import load_visibility, visible_agents, sort_by_order
+from agent_host import agent_host, is_deployed
 
-IS_DEPLOYED = os.environ.get("PORTAL_ENV") == "deploy"
-LOCAL_HOST = "192.168.14.222"
-DEPLOY_HOST = "192.168.10.169"
-AGENT_HOST = DEPLOY_HOST if IS_DEPLOYED else LOCAL_HOST
+IS_DEPLOYED = is_deployed()
+AGENT_HOST = agent_host()
 
 
 def is_running(host, port):
