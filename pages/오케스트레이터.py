@@ -1,3 +1,6 @@
+import json
+
+import anthropic
 import streamlit as st
 
 from access_control import is_admin
@@ -7,6 +10,37 @@ from orchestrator_registry import load_registry, enabled_agents, agent_labels
 from orchestrator_router import route
 from orchestrator_executor import ask_agents, check_health
 from orchestrator_synth import synthesize
+
+
+def _run_llm_step(step_desc: str, fn, *args, **kwargs):
+    """route()/synthesize()가 던질 수 있는 anthropic/json 예외를 잡아 화면에
+    안내를 띄우고 멈춘다. 두 호출부가 같은 함수를 거치므로 예외 처리 순서와
+    문구 스타일이 항상 같다 — 한쪽만 고치고 다른 쪽을 빠뜨리는 일이 없다.
+
+    질문은 이미 st.session_state["orch_messages"]에 사용자 메시지로 들어가
+    있으므로, 실패 시 답 없는 질문만 남기지 않도록 오류 문구를 assistant
+    메시지로 이어 붙인 뒤 멈춘다."""
+    try:
+        return fn(*args, **kwargs)
+    except anthropic.AuthenticationError:
+        msg = (f"{step_desc} 중 인증 오류가 발생했습니다. "
+               "`.env`에 `ANTHROPIC_API_KEY`를 설정해야 합니다.")
+    except anthropic.RateLimitError:
+        msg = f"{step_desc} 중 LLM 호출 한도를 초과했습니다. 잠시 후 다시 시도해주세요."
+    except anthropic.APIStatusError as e:
+        msg = (f"{step_desc} 중 LLM API 오류가 발생했습니다 "
+               f"(상태 코드 {e.status_code}). 잠시 후 다시 시도해주세요.")
+    except anthropic.APIConnectionError:
+        msg = f"{step_desc} 중 LLM 서버에 연결하지 못했습니다. 네트워크 상태를 확인해주세요."
+    except json.JSONDecodeError:
+        msg = f"{step_desc} 중 LLM 응답을 해석하지 못했습니다 (JSON 형식 오류). 다시 시도해주세요."
+    except Exception as e:
+        msg = f"{step_desc} 중 알 수 없는 오류가 발생했습니다: {type(e).__name__}: {e}"
+
+    st.error(msg)
+    st.session_state["orch_messages"].append({"role": "assistant", "content": msg})
+    st.stop()
+
 
 _client_ip = st.session_state.get("_client_ip", "")
 if not is_admin(_client_ip):
@@ -59,7 +93,7 @@ if _question:
 
     with st.chat_message("assistant"):
         with st.spinner("어느 에이전트가 담당인지 판단하는 중..."):
-            decision = route(_question, _agents)
+            decision = _run_llm_step("라우팅", route, _question, _agents)
 
         if not decision["picks"]:
             st.info(decision["none_reason"])
@@ -74,7 +108,7 @@ if _question:
             results = ask_agents(decision["picks"], _agents, _question, history, _host)
 
         with st.spinner("답변을 합치는 중..."):
-            out = synthesize(_question, results, labels=_labels)
+            out = _run_llm_step("답변 합성", synthesize, _question, results, labels=_labels)
 
         st.markdown(out["answer"])
 
