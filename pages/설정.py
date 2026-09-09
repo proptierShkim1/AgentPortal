@@ -146,11 +146,14 @@ def _deploy():
                 _sftp_upload_dir(sftp, local_sub, f"{_DEPLOY_REMOTE}/{dir_name}", log)
         log("✅ 코드 업로드 완료")
 
-        _vis_local = ROOT / "data" / "visibility_config.json"
-        if _vis_local.exists():
-            _sftp_mkdir_p(sftp, f"{_DEPLOY_REMOTE}/data")
-            sftp.put(str(_vis_local), f"{_DEPLOY_REMOTE}/data/visibility_config.json")
-            log("↑ data/visibility_config.json")
+        # data/ 전체는 올리지 않는다 — 배포 서버의 access_config.json을 로컬 IP로
+        # 덮어써 실제 사용자를 잠가버린다. 로컬이 원본인 파일만 개별 업로드한다.
+        for _name in ("visibility_config.json", "orchestrator_registry.json"):
+            _local = ROOT / "data" / _name
+            if _local.exists():
+                _sftp_mkdir_p(sftp, f"{_DEPLOY_REMOTE}/data")
+                sftp.put(str(_local), f"{_DEPLOY_REMOTE}/data/{_name}")
+                log(f"↑ data/{_name}")
 
         sftp.close()
 
