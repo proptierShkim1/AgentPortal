@@ -5,3 +5,4 @@ lex-env/
 venv/
 .streamlit/secrets.toml
 data/access_log.jsonl
+data/orchestrator_sessions/
