@@ -7,7 +7,7 @@
     "when_not_to_use": "특정 회사의 처리방침 문서를 검토하는 것이면 policy를, 뉴스·동향이면 hana나 radar를 쓴다",
     "api_port": 9501,
     "timeout_sec": 60,
-    "enabled": false
+    "enabled": true
   },
   "policy": {
     "agent_name": "PolicyAgent",
