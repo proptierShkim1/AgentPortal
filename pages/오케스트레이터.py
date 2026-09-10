@@ -60,13 +60,12 @@ _labels = agent_labels(_agents, AGENTS)
 
 # 제목과 상태확인 버튼을 한 줄에 둔다. 상태 확인은 가끔 쓰는 기능이라 본문 위에
 # 펼침 상자로 자리를 차지하면 대화가 밀린다 — 우측 상단 버튼 + 다이얼로그로 옮긴다.
-_head_left, _head_right = st.columns([5, 1])
+_head_left, _head_right = st.columns([4, 1], vertical_alignment="center")
 with _head_left:
     st.title("🎛️ 오케스트레이터")
-    st.caption("질문 하나로 관련 에이전트들을 골라 부르고, 답변을 하나로 합칩니다.")
 with _head_right:
-    st.write("")
     _open_status = st.button("🩺 에이전트 확인", use_container_width=True)
+st.caption("질문 하나로 관련 에이전트들을 골라 부르고, 답변을 하나로 합칩니다.")
 
 if not _agents:
     st.warning(
@@ -100,32 +99,41 @@ _all_sessions = sessions_store.load_sessions(_client_ip)
 if not _all_sessions:
     _all_sessions = [sessions_store.create_session(_client_ip)]
 
-_picker, _newbtn = st.columns([5, 1])
-with _newbtn:
-    st.write("")
-    if st.button("🆕 새 대화", use_container_width=True):
-        # 빈 대화가 이미 열려 있으면 새로 만들지 않는다 — 빈 세션만 쌓인다.
-        if _all_sessions[-1].get("messages"):
-            created = sessions_store.create_session(_client_ip)
-            st.session_state["orch_session_id"] = created["id"]
-        else:
-            st.session_state["orch_session_id"] = _all_sessions[-1]["id"]
-        st.rerun()
-
 _ids = [s["id"] for s in _all_sessions]
 _current_id = st.session_state.get("orch_session_id")
 if _current_id not in _ids:
     _current_id = _ids[-1]
 
-with _picker:
-    _picked_id = st.selectbox(
-        "대화 선택",
-        options=list(reversed(_ids)),          # 최신 대화가 위로
-        index=list(reversed(_ids)).index(_current_id),
-        format_func=lambda sid: sessions_store.session_label(
-            next(s for s in _all_sessions if s["id"] == sid)
-        ),
-    )
+
+def _start_new_conversation():
+    # 빈 대화가 이미 열려 있으면 새로 만들지 않는다 — 빈 세션만 쌓인다.
+    if _all_sessions[-1].get("messages"):
+        st.session_state["orch_session_id"] = sessions_store.create_session(_client_ip)["id"]
+    else:
+        st.session_state["orch_session_id"] = _all_sessions[-1]["id"]
+
+
+# 대화가 하나뿐이면 고를 것이 없다 — 드롭다운 대신 버튼만 둔다.
+if len(_ids) == 1:
+    _picked_id = _ids[0]
+    _, _newbtn = st.columns([4, 1], vertical_alignment="center")
+    with _newbtn:
+        st.button("🆕 새 대화", use_container_width=True, on_click=_start_new_conversation)
+else:
+    _order = list(reversed(_ids))              # 최신 대화가 위로
+    _picker, _newbtn = st.columns([4, 1], vertical_alignment="bottom")
+    with _picker:
+        _picked_id = st.selectbox(
+            f"지난 대화 {len(_ids)}개 · 골라서 이어 물을 수 있습니다",
+            options=_order,
+            index=_order.index(_current_id),
+            format_func=lambda sid: sessions_store.session_label(
+                next(s for s in _all_sessions if s["id"] == sid)
+            ),
+        )
+    with _newbtn:
+        st.button("🆕 새 대화", use_container_width=True, on_click=_start_new_conversation)
+
 st.session_state["orch_session_id"] = _picked_id
 
 _session = next(s for s in _all_sessions if s["id"] == _picked_id)
