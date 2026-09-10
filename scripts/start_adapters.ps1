@@ -88,11 +88,21 @@ foreach ($key in $targets) {
 
     if (-not (Test-Path $apiPath)) { Write-Host "! $key : api.py 없음 ($apiPath)"; continue }
 
+    # 출력을 파일로 돌린다. 이걸 안 하면 Start-Process가 연 창이 프로세스와 함께
+    # 닫혀서, 기동에 실패해도 이유가 아무 데도 남지 않는다(실제로 겪음 —
+    # 프로세스가 떴다 사라지는데 화면에는 "시작"만 찍혔다).
+    # api.py 경로를 따옴표로 감싼다. 리포 경로에 공백이 있어("Project Agent")
+    # -ArgumentList 배열이 공백으로 이어붙으면 파이썬이 "...\Desktop\Project"까지만
+    # 파일명으로 받아 즉시 죽는다. 실패가 창과 함께 사라져 원인을 찾기 어려웠다.
+    $logOut = Join-Path $repoPath "adapter.log"
+    $logErr = Join-Path $repoPath "adapter.err.log"
+
     try {
         Start-Process -FilePath $python `
-            -ArgumentList @($apiPath, "--host", $BindHost, "--port", "$port") `
-            -WorkingDirectory $repoPath
-        Write-Host "+ $key : 포트 $port 로 시작"
+            -ArgumentList @("-u", "`"$apiPath`"", "--host", $BindHost, "--port", "$port") `
+            -WorkingDirectory $repoPath `
+            -RedirectStandardOutput $logOut -RedirectStandardError $logErr
+        Write-Host "+ $key : 포트 $port 로 시작 (로그: $logOut)"
         $started++
     } catch {
         # 한 개가 실패해도 나머지는 계속 띄운다 — 조용히 건너뛰면 런처의 목적을 배반한다.
