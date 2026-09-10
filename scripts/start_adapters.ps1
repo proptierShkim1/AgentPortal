@@ -59,7 +59,9 @@ if ($freeGb -lt 3) {
 }
 Write-Host ""
 
-$targets = if ($Only) { $Only } else { $repos.Keys }
+# 배치 래퍼가 인자를 쉼표로 이어 넘기다 보면 빈 항목이 섞일 수 있다.
+# 그대로 두면 "알 수 없는 키" 경고가 줄줄이 찍혀 진짜 메시지를 가린다.
+$targets = if ($Only) { $Only | Where-Object { $_ -and $_.Trim() } } else { $repos.Keys }
 $started = 0
 
 foreach ($key in $targets) {

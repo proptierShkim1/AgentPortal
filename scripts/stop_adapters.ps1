@@ -24,7 +24,7 @@ if (-not (Test-Path $registryPath)) {
 
 $registry = Get-Content $registryPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $keys = @("lex", "policy", "hana", "radar")
-$targets = if ($Only) { $Only } else { $keys }
+$targets = if ($Only) { $Only | Where-Object { $_ -and $_.Trim() } } else { $keys }
 $stopped = 0
 
 foreach ($key in $targets) {
