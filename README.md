@@ -45,16 +45,29 @@ AgentPortal/
 ├── access_control.py        # IP 등록 목록 기반 관리자/이력열람 권한 판별
 ├── access_log.py            # 접속(페이지 이동) 로그 기록/조회 로직
 ├── visibility_config.py     # 카드 노출(로컬/배포)·순서 설정 로직
+├── agent_host.py            # 로컬/배포 호스트 해석 (에이전트는 포트만 다르다)
+├── orchestrator_registry.py # 어느 에이전트가 붙어 있고 언제 쓰는지 (라우터가 읽는 것)
+├── orchestrator_router.py   # 질문 -> 부를 에이전트 선택 (0개도 정상 결과)
+├── orchestrator_executor.py # 선택된 에이전트 병렬 호출 + 실패 격리
+├── orchestrator_synth.py    # 답변 합성 / 근거 없는 직접 답변(direct_answer)
+├── orchestrator_llm.py      # Anthropic 우선, Gemini 다중키 폴백
+├── orchestrator_sessions.py # 대화를 클라이언트별 파일로 저장 (재개용)
 ├── pages/
 │   ├── 포털.py               # 메인 대시보드 (에이전트 카드 그리드) — 누구나 접근 가능
+│   ├── 오케스트레이터.py       # 질문 1개로 관련 에이전트를 골라 부르고 합성(관리자 전용)
 │   ├── 설정.py               # 카드 노출/순서 편집 + 서버 배포(관리자 전용)
 │   ├── 로그.py               # 접속 IP/행위 로그 뷰어 (검색·필터·페이지네이션, 관리자 전용)
 │   └── 버전이력.py            # git 커밋 로그 뷰어(이력 열람 권한자 전용)
 ├── data/
 │   ├── access_config.json   # IP 등록 목록 (git에 커밋됨, 실제 운영값)
 │   ├── access_log.jsonl     # 접속 로그 (gitignore 대상, 로컬 전용)
+│   ├── orchestrator_registry.json  # 어댑터 목록·포트·역할 (배포 시 함께 업로드)
+│   ├── orchestrator_sessions/      # 오케스트레이터 대화 (gitignore 대상)
 │   └── visibility_config.json
-├── scripts/start_server.sh  # 배포 서버에서 Streamlit을 기동하는 스크립트
+├── scripts/
+│   ├── start_server.sh      # 배포 서버에서 Streamlit을 기동하는 스크립트
+│   ├── start_adapters.ps1   # 하위 에이전트 어댑터 기동(로컬) — -Only / -List 지원
+│   └── stop_adapters.ps1    # 어댑터 중지
 ├── .streamlit/config.toml   # 배포 서버 전용 실행 설정
 ├── .env                     # 배포 접속 정보 (gitignore 대상, 직접 생성 필요)
 └── tests/                   # pytest 테스트
@@ -112,6 +125,74 @@ python -m streamlit run app.py --server.address 192.168.14.222 --server.port 900
 4. `PORTAL_ENV=deploy`로 Streamlit 재기동
 
 배포 후 서버만 재시작하고 싶을 땐 옆의 "🔄 Streamlit 재시작" 버튼을 사용합니다.
+
+## 오케스트레이터
+
+질문 하나를 받아 **담당 에이전트를 자동으로 고르고 -> 병렬 호출하고 -> 답변을 하나로
+합쳐서** 내놓습니다. 결과물은 "OO로 가보세요" 같은 라우팅 안내가 아니라 통합 답변입니다.
+
+전형적인 목표 질문: *"처리방침 개정할 때 최근 법령 중 반영해야 할 게 있나?"*
+-> 폴리가 처리방침 관점을, 렉스가 근거 법령을 대고 하나로 합성됩니다.
+
+관리자 전용 페이지(`pages/오케스트레이터.py`)이며, 우측 상단 **에이전트 확인** 버튼으로
+어댑터 상태를 볼 수 있습니다. 대화는 클라이언트별로 저장되어 지난 대화를 다시 열어
+이어서 물을 수 있고, 그때 인용과 라우팅 이유도 함께 보입니다.
+
+### 하위 에이전트 어댑터
+
+하위 에이전트는 전부 Streamlit UI라 호출할 API가 없었습니다. 그래서 각 리포에 창구
+(`api.py`)를 두었고, 노출하는 것은 두 개뿐입니다.
+
+```
+POST /ask     {question, chat_history?}
+           -> {answer, sufficient, citations[]?, grounding{}, agent, elapsed_ms}
+GET  /health  -> {ok, corpus_counts{}}
+```
+
+`/health`가 코퍼스 건수까지 주는 이유는, 프로세스 생존만 보면 **빈 저장소를 붙들고
+정상이라 답하는 상태**를 못 잡기 때문입니다.
+
+| 키 | 에이전트 | 포트 | 기동 방식 |
+|---|---|---|---|
+| `lex` | 렉스 (LexAgent) | 9501 | **Streamlit 앱 안의 스레드** |
+| `policy` | 폴리 (PolicyAgent) | 9502 | **Streamlit 앱 안의 스레드** |
+| `hana` | 프니 (hana_p) | 7500 | 별도 프로세스 |
+| `radar` | 에리 (AiAxRadar) | 4501 | 별도 프로세스 |
+
+기동 방식이 갈리는 이유는 저장소입니다. 렉스·폴리는 **Qdrant 로컬 파일 모드**라 저장소
+폴더를 한 프로세스만 열 수 있어서, `python api.py`로 따로 띄우면 검색 자체가 불가능합니다
+(`Storage folder ... is already accessed by another instance`). 그래서 앱과 같은 프로세스의
+데몬 스레드로 띄웁니다 — 대신 **앱이 꺼지면 어댑터도 사라지고, Streamlit 특성상 누군가
+그 페이지를 한 번 열어야 스레드가 뜹니다.** 프니·에리는 SQLite(WAL)라 그 제약이 없어
+앱이 꺼져 있어도 오케스트레이터가 물어볼 수 있습니다.
+
+### 어댑터 실행
+
+루트의 `어댑터.bat`을 쓰거나 스크립트를 직접 부릅니다.
+
+```
+어댑터.bat                 전부 실행
+어댑터.bat lex policy      고른 것만 실행
+어댑터.bat status          상태 보기
+어댑터.bat stop [키...]     중지
+```
+
+기동에 실패하면 각 리포의 `adapter.err.log`를 보세요. `Start-Process`가 연 창은 프로세스와
+함께 닫혀서 화면에 아무것도 남지 않습니다.
+
+> 이 PC(16GB)에서는 4개를 동시에 띄우면 메모리가 모자랄 수 있습니다. 무게는
+> lex > policy > hana > radar 순이라, 여유가 적으면 가벼운 것부터 골라 켜세요.
+> 런처가 여유 3GB 미만이면 경고합니다.
+
+### 알아둘 점
+
+- **루트 모듈을 고치면 포털을 재시작해야 합니다.** Streamlit은 `pages/*.py`만 매번 다시
+  실행하고 이미 임포트된 모듈은 다시 읽지 않아, `AttributeError`로 드러납니다.
+- 레지스트리(`data/orchestrator_registry.json`)의 `when_to_use`/`when_not_to_use`가
+  **라우터가 실제로 읽는 것**입니다. 에이전트 추가는 여기 항목 하나를 넣는 것으로 끝나야
+  합니다. `when_not_to_use`를 "그럴 땐 저쪽" 식으로 쓰면 두 에이전트에 걸치는 질문에서
+  한쪽이 배제되므로, "**단독으로** 그것만 묻는 경우"로 한정해 쓰세요.
+- `timeout_sec`(호출)과 `health_timeout_sec`(상태 확인)은 에이전트별로 조정할 수 있습니다.
 
 ## 테스트
 
