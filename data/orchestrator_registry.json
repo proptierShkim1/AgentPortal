@@ -17,7 +17,7 @@
     "when_not_to_use": "처리방침과 무관한 순수 법령 해석이면 lex를 쓴다",
     "api_port": 9502,
     "timeout_sec": 60,
-    "enabled": false
+    "enabled": true
   },
   "hana": {
     "agent_name": "Proptier AI News",
