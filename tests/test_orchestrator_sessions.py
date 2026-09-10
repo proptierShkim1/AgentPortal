@@ -141,3 +141,53 @@ def test_session_label_marks_empty_conversation(tmp_path, monkeypatch):
     s = store.create_session("1.2.3.4")
 
     assert "빈 대화" in store.session_label(s)
+
+
+# --- answer_meta / trim_citations -----------------------------------------
+# 지난 대화를 다시 열면 인용과 라우팅 이유가 사라지던 문제를 고친 부분이다.
+# 저장 형식이 무한정 커지지 않는 것도 함께 고정한다.
+
+
+def _law(name="개인정보 보호법", article="제17조", text="조문 본문"):
+    return {"type": "law", "law_name": name, "article": article, "text": text}
+
+
+def test_answer_meta_keeps_pick_reasons_with_labels():
+    meta = store.answer_meta(
+        "synth",
+        picks=[{"agent": "lex", "reason": "법령 근거가 필요"}],
+        labels={"lex": "⚖️ 렉스"},
+    )
+    assert meta["picks"] == [{"agent": "⚖️ 렉스", "reason": "법령 근거가 필요"}]
+    assert meta["agents"] == ["⚖️ 렉스"]
+
+
+def test_answer_meta_omits_empty_sections():
+    meta = store.answer_meta("direct")
+    assert meta == {"mode": "direct"}
+
+
+def test_answer_meta_stores_citations():
+    meta = store.answer_meta("single", citations=[_law()])
+    assert meta["citations"][0]["law_name"] == "개인정보 보호법"
+
+
+def test_trim_citations_caps_text_length():
+    long_text = "가" * 5000
+    trimmed = store.trim_citations([_law(text=long_text)])
+    assert len(trimmed[0]["text"]) == store._MAX_CITATION_TEXT
+
+
+def test_trim_citations_caps_count():
+    trimmed = store.trim_citations([_law(article=f"제{i}조") for i in range(50)])
+    assert len(trimmed) == store._MAX_SAVED_CITATIONS
+
+
+def test_trim_citations_drops_non_dict_entries():
+    assert store.trim_citations([_law(), "문자열 인용", None]) == store.trim_citations([_law()])
+
+
+def test_answer_meta_labels_failed_agents():
+    meta = store.answer_meta("synth", failed=[{"agent": "hana", "error": "연결 실패"}],
+                             labels={"hana": "🏠 프니"})
+    assert meta["failed"] == [{"agent": "🏠 프니", "error": "연결 실패"}]

@@ -177,3 +177,19 @@ def test_direct_answer_is_used_and_saved_when_no_agent_matches(tmp_path, monkeyp
     saved = orchestrator_sessions.load_sessions("1.2.3.4")[0]["messages"]
     assert saved[1]["content"] == "근거 없는 직접 답변"
     assert saved[1]["meta"]["mode"] == "direct"
+
+
+def test_citations_and_reasons_survive_in_the_saved_session(tmp_path, monkeypatch):
+    """지난 대화를 다시 열었을 때 근거를 되짚을 수 있어야 한다."""
+    _wire(tmp_path, monkeypatch, synth={
+        "answer": "합성된 답변",
+        "citations": [{"type": "law", "law_name": "개인정보 보호법",
+                       "article": "제17조", "text": "조문 본문"}],
+        "mode": "synth", "failed": [],
+    })
+
+    _ask("제17조 관련 질문")
+
+    meta = orchestrator_sessions.load_sessions("1.2.3.4")[0]["messages"][1]["meta"]
+    assert meta["citations"][0]["article"] == "제17조"
+    assert meta["picks"][0]["reason"] == "법령 질문"

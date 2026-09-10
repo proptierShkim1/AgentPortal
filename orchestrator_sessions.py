@@ -99,6 +99,57 @@ def delete_session(client_ip: str, session_id: str) -> None:
         _save_sessions(client_ip, current)
 
 
+# 인용 본문은 수천 자가 되기도 한다. 대화 50개가 쌓이면 파일이 감당 못 하므로
+# 저장할 때 깎는다 — 화면에서는 어느 조문인지 알아보는 것이 목적이고, 전문은
+# 해당 에이전트에서 다시 볼 수 있다.
+_MAX_SAVED_CITATIONS = 20
+_MAX_CITATION_TEXT = 300
+
+
+def trim_citations(citations: list) -> list:
+    """세션에 남길 만큼만 인용을 깎는다. dict가 아닌 항목은 버린다."""
+    out = []
+    for citation in (citations or [])[:_MAX_SAVED_CITATIONS]:
+        if not isinstance(citation, dict):
+            continue
+        text = str(citation.get("text", ""))
+        out.append({
+            "type": citation.get("type", ""),
+            "law_name": citation.get("law_name", ""),
+            "article": citation.get("article", ""),
+            "text": text[:_MAX_CITATION_TEXT],
+        })
+    return out
+
+
+def answer_meta(mode: str, picks: list = None, labels: dict = None,
+                citations: list = None, failed: list = None) -> dict:
+    """assistant 메시지에 함께 저장할 부가 정보를 만든다.
+
+    지난 대화를 다시 열었을 때도 "왜 그 에이전트를 불렀는지"와 "무엇을 근거로
+    답했는지"를 보여주기 위한 것이다. 본문(content)과 분리해 두면 표시 방식이
+    바뀌어도 저장된 대화 본문은 그대로 남는다.
+
+    비어 있는 키는 넣지 않는다 — 저장 형식을 불필요하게 부풀리지 않는다."""
+    meta = {"mode": mode}
+    if picks:
+        meta["picks"] = [
+            {"agent": (labels or {}).get(p["agent"], p["agent"]),
+             "reason": p.get("reason", "")}
+            for p in picks
+        ]
+        meta["agents"] = [p["agent"] for p in meta["picks"]]
+    if citations:
+        meta["citations"] = trim_citations(citations)
+    if failed:
+        meta["failed"] = [
+            {"agent": (labels or {}).get(f["agent"], f["agent"]),
+             "error": f.get("error", "")}
+            for f in failed
+        ]
+    return meta
+
+
 def session_label(session: dict) -> str:
     """선택 목록에 쓸 한 줄 라벨 — 시작 시각 + 첫 질문 미리보기.
 

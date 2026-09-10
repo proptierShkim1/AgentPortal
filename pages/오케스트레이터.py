@@ -139,12 +139,37 @@ st.session_state["orch_session_id"] = _picked_id
 _session = next(s for s in _all_sessions if s["id"] == _picked_id)
 _messages = _session.get("messages", [])
 
-for _msg in _messages:
+def _render_provenance(meta: dict, key: str):
+    """어느 에이전트를 왜 불렀고 무엇을 근거로 답했는지 펼쳐 보여준다.
+
+    방금 답한 턴과 지난 대화가 같은 함수를 쓰게 해서, 다시 열었을 때 근거가
+    사라지지 않게 한다. meta가 없는 예전 대화도 있으므로 키마다 있는 것만 그린다."""
+    picks, citations, failed = meta.get("picks"), meta.get("citations"), meta.get("failed")
+    if not (picks or citations or failed):
+        return
+    with st.expander("이 답변이 만들어진 경로", expanded=False):
+        if picks:
+            st.markdown("**호출한 에이전트와 이유**")
+            for pick in picks:
+                st.markdown(f"- {pick['agent']}: {pick['reason']}")
+        if failed:
+            st.markdown("**응답하지 못한 에이전트**")
+            for item in failed:
+                st.markdown(f"- {item['agent']}: {item['error']}")
+    if citations:
+        with st.expander(f"인용 {len(citations)}건", expanded=False):
+            for citation in citations:
+                label = " ".join(
+                    str(citation.get(f, "")) for f in ("law_name", "article")
+                ).strip()
+                st.markdown(f"- **{label or citation.get('type', '')}** {citation.get('text', '')}")
+
+
+for _idx, _msg in enumerate(_messages):
     with st.chat_message(_msg["role"]):
         st.markdown(_msg["content"])
-        _meta = _msg.get("meta") or {}
-        if _meta.get("agents"):
-            st.caption("호출된 에이전트: " + ", ".join(_meta["agents"]))
+        if _msg["role"] == "assistant":
+            _render_provenance(_msg.get("meta") or {}, f"hist{_idx}")
 
 _question = st.chat_input("질문을 입력하세요")
 
@@ -170,7 +195,7 @@ if _question:
             st.markdown(out["answer"])
             sessions_store.append_message(
                 _client_ip, _picked_id, "assistant", out["answer"],
-                meta={"mode": out["mode"]},
+                meta=sessions_store.answer_meta(out["mode"]),
             )
             st.stop()
 
@@ -222,8 +247,9 @@ if _question:
 
     sessions_store.append_message(
         _client_ip, _picked_id, "assistant", out["answer"],
-        meta={
-            "mode": out["mode"],
-            "agents": [_labels.get(p["agent"], p["agent"]) for p in decision["picks"]],
-        },
+        meta=sessions_store.answer_meta(
+            out["mode"], picks=decision["picks"], labels=_labels,
+            citations=out["citations"],
+            failed=out["failed"] if out["mode"] != "direct" else None,
+        ),
     )
