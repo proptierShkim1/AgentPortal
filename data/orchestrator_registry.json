@@ -6,7 +6,8 @@
     "when_to_use": "개인정보보호법 조항의 의미·요건·위반 여부를 묻거나, 근거 조문과 심결례를 찾을 때",
     "when_not_to_use": "특정 회사의 처리방침 문서를 검토하는 것이면 policy를, 뉴스·동향이면 hana나 radar를 쓴다",
     "api_port": 9501,
-    "timeout_sec": 60,
+    "health_timeout_sec": 20,
+    "timeout_sec": 150,
     "enabled": true
   },
   "policy": {
@@ -26,6 +27,7 @@
     "when_to_use": "부동산 업계 뉴스, 브랜드 언급량, 정책 이벤트 동향을 물을 때",
     "when_not_to_use": "AI 업계 동향이면 radar를, 법령 해석이면 lex를 쓴다",
     "api_port": 7500,
+    "health_timeout_sec": 20,
     "timeout_sec": 90,
     "enabled": true
   },

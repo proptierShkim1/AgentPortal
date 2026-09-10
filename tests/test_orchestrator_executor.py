@@ -235,3 +235,44 @@ def test_check_health_reports_not_ok_on_connect_error():
     health = ex.check_health(AGENTS["lex"], HOST, _client(handler))
     assert health["ok"] is False
     assert health["error"]
+
+
+# --- 헬스체크 타임아웃 출처 -------------------------------------------------
+# 5초로 하드코딩돼 있어서 콜드 스타트 직후 첫 확인이 실패했다(렉스 7.8초,
+# 프니 8~11초 실측). ask_agent와 같이 레지스트리에서 받도록 바꾼 것을 고정한다.
+
+
+def _timeout_capturing_client(seen):
+    def handler(request):
+        seen.append(request.extensions.get("timeout", {}))
+        return httpx.Response(200, json={"ok": True, "corpus_counts": {"laws": 1}})
+    return _client(handler)
+
+
+def test_check_health_uses_registry_timeout():
+    seen = []
+    entry = {"api_port": 9501, "health_timeout_sec": 20}
+
+    ex.check_health(entry, HOST, client=_timeout_capturing_client(seen))
+
+    assert seen[0]["read"] == 20
+
+
+def test_check_health_falls_back_to_default_timeout():
+    seen = []
+    entry = {"api_port": 9501}          # health_timeout_sec 없음
+
+    ex.check_health(entry, HOST, client=_timeout_capturing_client(seen))
+
+    assert seen[0]["read"] == ex.DEFAULT_HEALTH_TIMEOUT_SEC
+
+
+def test_default_health_timeout_is_longer_than_observed_cold_start():
+    """콜드 스타트 실측이 8~11초였다. 기본값이 그보다 짧으면 멀쩡한 에이전트가
+    기동 직후 항상 죽은 것으로 보고된다."""
+    assert ex.DEFAULT_HEALTH_TIMEOUT_SEC >= 15
+
+
+def test_health_timeout_is_shorter_than_ask_timeout():
+    """헬스체크가 /ask만큼 오래 기다리면 상태 확인 화면이 그동안 멈춘다."""
+    assert ex.DEFAULT_HEALTH_TIMEOUT_SEC < ex.DEFAULT_TIMEOUT_SEC

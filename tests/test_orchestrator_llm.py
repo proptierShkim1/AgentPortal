@@ -236,12 +236,17 @@ def test_call_json_disables_thinking_on_gemini(monkeypatch):
     assert calls[0]["config"].thinking_config.thinking_budget == 0
 
 
-def test_call_text_does_not_disable_thinking_on_gemini(monkeypatch):
+def test_call_text_disables_thinking_on_gemini(monkeypatch):
+    """예전에는 장문 경로에 thinking_config를 걸지 않았고, 이 테스트도 그 동작을
+    그대로 고정하고 있었다. 그런데 사고 토큰이 max_output_tokens를 먼저 소진해
+    응답이 조용히 잘리는 것이 실측됐다(max_tokens=200 요청에 본문 8자). 합성기는
+    주어진 답변을 합치는 작업이라 사고를 꺼도 손해가 작고, 반쪽 답변이 정상처럼
+    나가는 쪽이 훨씬 나쁘다 — 그래서 판정을 뒤집었다."""
     _no_anthropic(monkeypatch)
     _keys(monkeypatch, "k1")
     calls, used = [], []
     llm.call_text("시스템", "질문", gemini_factory=_gemini_factory("답변", calls, used))
-    assert calls[0]["config"].thinking_config is None
+    assert calls[0]["config"].thinking_config.thinking_budget == 0
 
 
 def test_call_json_normalizes_literal_null_from_gemini(monkeypatch):
@@ -342,3 +347,89 @@ def test_gemini_takes_over_when_anthropic_raises(monkeypatch):
     out = llm.call_text("s", "u", gemini_factory=_gemini_factory("제미나이 답변", calls, used))
     assert out == "제미나이 답변"
     assert used == ["k1"]
+
+
+# --- 장문 경로 잘림 방지 ---------------------------------------------------
+# call_text(합성기 경로)는 스키마가 없어서 thinking_config가 걸리지 않았고,
+# 사고 토큰이 출력 예산을 먼저 먹어 응답이 조용히 잘렸다(max_tokens=200 요청에
+# 본문 8자 실측). 두 가지를 고정한다 — 사고를 끄는 것과, 그래도 잘리면 예외.
+
+
+class _TruncCandidate:
+    def __init__(self, reason):
+        self.finish_reason = reason
+
+
+class _TruncResponse:
+    def __init__(self, text, finish_reason=None):
+        self.text = text
+        self.candidates = [_TruncCandidate(finish_reason)] if finish_reason else []
+
+
+def _trunc_factory(response, captured=None):
+    class _Models:
+        def generate_content(self, model, contents, config):
+            if captured is not None:
+                captured.append(config)
+            return response
+
+    class _Client:
+        models = _Models()
+
+    return lambda api_key: _Client()
+
+
+def test_thinking_is_disabled_for_text_calls_too(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEYS", "k1")
+    captured = []
+
+    llm.call_text(
+        "system", "user", max_tokens=500,
+        gemini_factory=_trunc_factory(_TruncResponse("본문"), captured),
+    )
+
+    assert captured[0].thinking_config.thinking_budget == 0
+
+
+def test_thinking_stays_disabled_for_json_calls(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEYS", "k1")
+    captured = []
+
+    llm.call_json(
+        "system", "user", {"type": "object", "properties": {}},
+        gemini_factory=_trunc_factory(_TruncResponse('{"a": 1}'), captured),
+    )
+
+    assert captured[0].thinking_config.thinking_budget == 0
+
+
+def test_truncated_response_raises_instead_of_returning_half_an_answer(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEYS", "k1")
+
+    with pytest.raises(Exception) as excinfo:
+        llm.call_text(
+            "system", "user", max_tokens=200,
+            gemini_factory=_trunc_factory(_TruncResponse("오케스트레이터는", "MAX_TOKENS")),
+        )
+
+    assert "잘렸" in str(excinfo.value)
+
+
+def test_normal_finish_reason_is_not_treated_as_truncation(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEYS", "k1")
+
+    out = llm.call_text(
+        "system", "user",
+        gemini_factory=_trunc_factory(_TruncResponse("정상 본문", "STOP")),
+    )
+
+    assert out == "정상 본문"
+
+
+def test_missing_finish_reason_is_not_treated_as_truncation(monkeypatch):
+    """판단할 근거가 없으면 정상 응답을 막지 않는다."""
+    monkeypatch.setenv("GEMINI_API_KEYS", "k1")
+
+    assert llm.call_text(
+        "system", "user", gemini_factory=_trunc_factory(_TruncResponse("본문")),
+    ) == "본문"

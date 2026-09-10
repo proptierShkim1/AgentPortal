@@ -17,6 +17,12 @@ from orchestrator_registry import agent_url
 DEFAULT_TIMEOUT_SEC = 60
 MAX_PARALLEL = 5
 
+# 헬스체크는 /ask보다 짧아야 한다 — 죽은 에이전트를 확인하려고 60초를 기다리면
+# 화면이 그동안 멈춘다. 다만 5초는 너무 짧았다: 콜드 스타트 직후 첫 확인에서
+# 렉스가 7.8초, 프니가 8~11초 걸려 멀쩡한 에이전트가 죽은 것으로 나왔다.
+# 레지스트리에 health_timeout_sec을 두면 에이전트별로 조정할 수 있다.
+DEFAULT_HEALTH_TIMEOUT_SEC = 15
+
 
 @dataclass
 class AgentResult:
@@ -113,11 +119,17 @@ def ask_agents(picks: list, agents: dict, question: str, chat_history: list,
 
 
 def check_health(entry: dict, host: str, client: httpx.Client = None) -> dict:
+    """어댑터가 살아 있는지와 코퍼스 건수를 확인한다.
+
+    타임아웃은 레지스트리의 health_timeout_sec을 쓰고, 없으면 기본값을 쓴다.
+    ask_agent가 timeout_sec을 레지스트리에서 받는 것과 같은 출처로 맞춘 것이다 —
+    한쪽만 하드코딩돼 있으면 느린 에이전트를 조정할 방법이 없다."""
     url = agent_url(entry, host, path="/health")
+    timeout = entry.get("health_timeout_sec") or DEFAULT_HEALTH_TIMEOUT_SEC
     owns_client = client is None
     client = client or httpx.Client()
     try:
-        response = client.get(url, timeout=5)
+        response = client.get(url, timeout=timeout)
         response.raise_for_status()
         body = response.json()
         return {"ok": bool(body.get("ok")),

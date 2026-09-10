@@ -108,6 +108,22 @@ def _call_anthropic(system: str, user: str, schema, max_tokens: int, client) -> 
     return _text_of(response)
 
 
+def _is_truncated(response) -> bool:
+    """Gemini가 출력 예산을 다 써서 응답을 끊었는지 본다.
+
+    finish_reason은 SDK 버전에 따라 enum이거나 문자열이라 이름으로 비교한다.
+    판단이 불가능하면 False를 돌려준다 — 확신 없이 정상 응답을 막지 않는다."""
+    candidates = getattr(response, "candidates", None) or []
+    for candidate in candidates:
+        reason = getattr(candidate, "finish_reason", None)
+        if reason is None:
+            continue
+        name = getattr(reason, "name", None) or str(reason)
+        if "MAX_TOKENS" in name.upper():
+            return True
+    return False
+
+
 def _next_gemini_key(keys: list) -> str:
     global _gemini_key_index
     with _key_lock:
@@ -119,13 +135,19 @@ def _next_gemini_key(keys: list) -> str:
 def _gemini_config(system: str, schema, max_tokens: int):
     from google.genai import types
 
-    kwargs = {"system_instruction": system, "max_output_tokens": max_tokens}
+    # 사고 토큰이 max_output_tokens를 먼저 소진해 응답 본문이 잘린다
+    # (LexAgent/llm_client.py 기록). 원래 JSON 응답에만 걸어두었는데, 장문
+    # 경로(call_text)에서도 같은 일이 실측됐다 — max_tokens=200으로 요청하면
+    # 본문이 8자만 돌아왔다. 합성기는 주어진 답변을 합치는 작업이라 사고를
+    # 꺼도 손해가 작고, 조용히 잘린 답변이 나가는 쪽이 훨씬 나쁘다.
+    kwargs = {
+        "system_instruction": system,
+        "max_output_tokens": max_tokens,
+        "thinking_config": types.ThinkingConfig(thinking_budget=0),
+    }
     if schema is not None:
         kwargs["response_mime_type"] = "application/json"
         kwargs["response_schema"] = to_gemini_schema(schema)
-        # 사고 토큰이 max_output_tokens를 먼저 소진해 응답 본문이 잘리는 문제가
-        # 분류·JSON 응답에서 실제로 발생한다 (LexAgent/llm_client.py 기록).
-        kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
     return types.GenerateContentConfig(**kwargs)
 
 
@@ -153,6 +175,12 @@ def _call_gemini(system: str, user: str, schema, max_tokens: int, gemini_factory
                 contents=user,
                 config=config,
             )
+            # 예산이 모자라 잘린 응답을 그대로 돌려주면 반쪽짜리 답변이 정상
+            # 답변처럼 화면에 나간다. 법령·세무 답변에서 이건 조용한 오답이다.
+            if _is_truncated(response):
+                raise RuntimeError(
+                    f"응답이 max_output_tokens({max_tokens})에 걸려 잘렸습니다."
+                )
             return (response.text or "").strip()
         except Exception as e:
             last_error = e
