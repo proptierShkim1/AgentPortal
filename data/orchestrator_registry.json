@@ -27,7 +27,7 @@
     "when_not_to_use": "AI 업계 동향이면 radar를, 법령 해석이면 lex를 쓴다",
     "api_port": 7500,
     "timeout_sec": 90,
-    "enabled": false
+    "enabled": true
   },
   "radar": {
     "agent_name": "AI RADAR",
@@ -37,6 +37,6 @@
     "when_not_to_use": "부동산 뉴스면 hana를, 법령이면 lex를 쓴다",
     "api_port": 4501,
     "timeout_sec": 90,
-    "enabled": false
+    "enabled": true
   }
 }
