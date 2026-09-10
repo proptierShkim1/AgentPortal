@@ -9,7 +9,7 @@ from agents_data import AGENTS
 from orchestrator_registry import load_registry, enabled_agents, agent_labels
 from orchestrator_router import route
 from orchestrator_executor import ask_agents, check_health
-from orchestrator_synth import synthesize
+from orchestrator_synth import synthesize, direct_answer
 
 
 def _run_llm_step(step_desc: str, fn, *args, **kwargs):
@@ -96,10 +96,14 @@ if _question:
             decision = _run_llm_step("라우팅", route, _question, _agents)
 
         if not decision["picks"]:
-            st.info(decision["none_reason"])
+            st.caption(decision["none_reason"])
             st.caption("연결된 에이전트: " + ", ".join(_labels.values()))
+            with st.spinner("담당 에이전트가 없어 직접 답하는 중..."):
+                out = _run_llm_step("직접 답변", direct_answer, _question,
+                                    labels=_labels)
+            st.markdown(out["answer"])
             st.session_state["orch_messages"].append(
-                {"role": "assistant", "content": decision["none_reason"]}
+                {"role": "assistant", "content": out["answer"]}
             )
             st.stop()
 
@@ -110,6 +114,13 @@ if _question:
         with st.spinner("답변을 합치는 중..."):
             out = _run_llm_step("답변 합성", synthesize, _question, results, labels=_labels)
 
+        # 합성기는 전부 실패했을 때 일반 지식으로 답하지 않는다(그 판단은 유지한다).
+        # 그래도 답이 필요하므로 근거 없음을 명시한 직접 답변으로 대신한다.
+        if out["mode"] == "all_failed":
+            with st.spinner("에이전트가 모두 응답하지 못해 직접 답하는 중..."):
+                out = _run_llm_step("직접 답변", direct_answer, _question,
+                                    failed=out["failed"], labels=_labels)
+
         st.markdown(out["answer"])
 
         # 라우팅을 블랙박스로 두지 않는다 — 왜 그 에이전트를 불렀는지 항상 보여준다.
@@ -118,7 +129,7 @@ if _question:
             for pick in decision["picks"]:
                 st.markdown(f"- {_labels.get(pick['agent'], pick['agent'])}: {pick['reason']}")
 
-            if out["failed"]:
+            if out["failed"] and out["mode"] != "direct":
                 st.markdown("**응답하지 못한 에이전트**")
                 for item in out["failed"]:
                     st.markdown(f"- {_labels.get(item['agent'], item['agent'])}: {item['error']}")
