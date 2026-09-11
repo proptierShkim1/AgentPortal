@@ -306,3 +306,31 @@ def test_restart_unit_proceeds_when_port_free():
     run = FakeRun({"is-active": ("inactive\n", "", 3), "grep -c": ("0\n", "", 0)})
     assert ad.restart_unit(run, entry, HOME, log=lambda m: None) is True
     assert any("systemctl --user restart" in c for c in run.calls)
+
+
+def test_remote_health_parses_corpus_counts():
+    # 어댑터가 루프백에만 열려 있으므로 로컬에서 직접 HTTP를 못 친다. SSH로 curl한다.
+    run = FakeRun({"curl": ('{"ok": true, "corpus_counts": {"mentions": 65908}}', "", 0)})
+    result = ad.remote_health(run, _entry())
+    assert result["ok"] is True
+    assert result["corpus_counts"] == {"mentions": 65908}
+
+
+def test_remote_health_curls_loopback_not_lan_ip():
+    run = FakeRun()
+    ad.remote_health(run, _entry())
+    assert any("127.0.0.1:7500/health" in c for c in run.calls)
+    assert not any("192.168" in c for c in run.calls)
+
+
+def test_remote_health_reports_error_when_curl_fails():
+    run = FakeRun({"curl": ("", "Connection refused", 7)})
+    result = ad.remote_health(run, _entry())
+    assert result["ok"] is False
+    assert result["error"]
+
+
+def test_remote_health_reports_error_on_unparsable_body():
+    run = FakeRun({"curl": ("<html>502</html>", "", 0)})
+    result = ad.remote_health(run, _entry())
+    assert result["ok"] is False

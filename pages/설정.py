@@ -7,7 +7,6 @@ from agents_data import AGENTS
 from visibility_config import load_visibility, save_visibility, sort_by_order
 from access_control import is_admin
 from orchestrator_registry import load_registry, deploy_targets
-from orchestrator_executor import check_health
 import adapter_deploy as ad
 
 ROOT = Path(__file__).parent.parent
@@ -289,12 +288,18 @@ else:
             _adapter_action(_selected, do_restart=True)
     with c_c:
         if st.button("🔄 상태 새로고침", use_container_width=True):
-            # 현재 환경이 아니라 항상 배포 서버를 본다.
-            for _key, _entry in _targets.items():
-                _h = check_health(_entry, _DEPLOY_HOST)
-                if _h["ok"]:
-                    _counts = ", ".join(f"{k} {v}" for k, v in _h["corpus_counts"].items())
-                    st.session_state[f"ad_state_{_key}"] = f"🟢 {_counts or '정상'}"
-                else:
-                    st.session_state[f"ad_state_{_key}"] = f"🔴 {_h['error']}"
+            # 어댑터는 루프백에만 열려 있어 여기서 직접 HTTP로 못 부른다. SSH로 curl한다.
+            try:
+                _ssh = _ssh_connect()
+                _run = _adapter_run_factory(_ssh)
+                for _key, _entry in _targets.items():
+                    _h = ad.remote_health(_run, _entry)
+                    if _h["ok"]:
+                        _counts = ", ".join(f"{k} {v}" for k, v in _h["corpus_counts"].items())
+                        st.session_state[f"ad_state_{_key}"] = f"🟢 {_counts or '정상'}"
+                    else:
+                        st.session_state[f"ad_state_{_key}"] = f"🔴 {_h['error'][:80]}"
+                _ssh.close()
+            except Exception as _e:
+                st.error(f"상태 조회 실패: {_e}")
             st.rerun()

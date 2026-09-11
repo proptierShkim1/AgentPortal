@@ -4,7 +4,7 @@ import anthropic
 import streamlit as st
 
 from access_control import is_admin
-from agent_host import agent_host
+from agent_host import adapter_host
 from agents_data import AGENTS
 from orchestrator_registry import load_registry, enabled_agents, agent_labels
 from orchestrator_router import route
@@ -53,7 +53,7 @@ if not is_admin(_client_ip):
 
 _registry = load_registry()
 _agents = enabled_agents(_registry)
-_host = agent_host()
+_host = adapter_host()
 
 # 카드 아이콘·닉네임 재사용 — agents_data.py의 name과 레지스트리의 agent_name을 연결한다.
 _labels = agent_labels(_agents, AGENTS)

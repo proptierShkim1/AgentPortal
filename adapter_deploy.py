@@ -8,6 +8,7 @@ systemctl --user이고 유닛은 ~/.config/systemd/user/에 둔다.
 """
 import hashlib
 import io
+import json
 import re
 from datetime import datetime
 from pathlib import Path
@@ -211,6 +212,27 @@ def restart_unit(run, entry: dict, home: str, log) -> bool:
 def service_state(run, entry: dict) -> str:
     out, _, _ = run(f"systemctl --user is-active {entry['deploy']['unit']}")
     return out.strip() or "unknown"
+
+
+def remote_health(run, entry: dict, timeout: int = 20) -> dict:
+    """서버에서 curl로 어댑터 /health를 친다.
+
+    어댑터가 루프백에만 바인딩돼 있어 로컬에서 직접 HTTP로 못 부른다. 이미 열려
+    있는 SSH를 재사용한다. 반환 형태는 orchestrator_executor.check_health와 같게
+    맞춰 화면 쪽 분기를 하나로 유지한다."""
+    port = entry["api_port"]
+    out, err, rc = run(
+        f"curl -s -m {timeout} http://127.0.0.1:{port}/health", timeout=timeout + 10
+    )
+    if rc != 0:
+        return {"ok": False, "corpus_counts": {}, "error": (err or "").strip() or f"curl rc={rc}"}
+    try:
+        body = json.loads(out)
+    except (ValueError, TypeError):
+        return {"ok": False, "corpus_counts": {},
+                "error": f"응답을 해석하지 못했습니다: {(out or '').strip()[:120]}"}
+    return {"ok": bool(body.get("ok")), "corpus_counts": body.get("corpus_counts") or {},
+            "error": "" if body.get("ok") else "어댑터가 ok=false를 반환했습니다"}
 
 
 def needs_first_visit(entry: dict) -> bool:
