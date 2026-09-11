@@ -140,6 +140,9 @@ UI는 에이전트별 한 줄로 구성한다: 체크박스 · 상태(`/health`�
     "files": ["api.py"],
     "mode": "service",
     "unit": "hana-adapter.service",
+    "description": "Proptier AI News 오케스트레이터 어댑터",
+    "exec": "venv/bin/python api.py",
+    "log": "adapter.log",
     "pip": ["fastapi==0.138.0", "uvicorn==0.42.0"]
   }
 }
@@ -147,6 +150,11 @@ UI는 에이전트별 한 줄로 구성한다: 체크박스 · 상태(`/health`�
 
 - `mode`는 `service`(별도 프로세스) 또는 `thread`(앱 안 스레드)다. `thread`면 `files`에
   진입점(`app.py`)이 포함되고 `unit`은 앱 서비스명이 된다.
+- `exec`는 유닛의 `ExecStart`가 될 명령을 `remote_dir` 기준 상대경로로 적는다.
+  `service`면 `venv/bin/python api.py`, `thread`면 그 앱을 지금 띄우고 있는 명령
+  전체(`venv/bin/python -m streamlit run app.py --server.port 9001 ...`)다. 유닛 내용을
+  코드에 박지 않기 위해 레지스트리에 둔다.
+- `log`는 `remote_dir` 기준 로그 파일명이며 유닛의 stdout/stderr가 여기 append된다.
 - `local_dir`은 AgentPortal 저장소 기준 상대경로, `remote_dir`은 서버 절대/홈 경로다.
   에리처럼 로컬과 서버의 리포 이름이 다른 경우를 이 두 필드가 흡수한다.
 - **`deploy` 블록이 없는 항목은 배포 대상에서 조용히 제외한다.** 로컬에서만 쓰는

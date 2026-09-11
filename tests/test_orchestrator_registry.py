@@ -99,3 +99,47 @@ def test_agent_labels_strips_leading_space_when_icon_missing():
     agents = {"lex": _entry(agent_name="LexAgent")}
     meta_agents = [{"name": "LexAgent", "nickname": "렉스"}]
     assert reg.agent_labels(agents, meta_agents) == {"lex": "렉스"}
+
+
+def _deploy(**over):
+    base = {
+        "local_dir": "../hana_p",
+        "remote_dir": "~/hana_p",
+        "files": ["api.py"],
+        "mode": "service",
+        "unit": "hana-adapter.service",
+        "description": "프니 어댑터",
+        "exec": "venv/bin/python api.py",
+        "log": "adapter.log",
+        "pip": ["fastapi==0.138.0", "uvicorn==0.42.0"],
+    }
+    base.update(over)
+    return base
+
+
+def test_deploy_targets_keeps_entry_with_complete_deploy_block():
+    registry = {"hana": _entry(deploy=_deploy())}
+    assert list(reg.deploy_targets(registry)) == ["hana"]
+
+
+def test_deploy_targets_drops_entry_without_deploy_block():
+    # deploy 블록이 없는 항목은 '로컬 전용 에이전트'다. 오류가 아니라 조용히 제외한다.
+    registry = {"lex": _entry()}
+    assert reg.deploy_targets(registry) == {}
+
+
+def test_deploy_targets_drops_entry_missing_required_deploy_field():
+    registry = {"hana": _entry(deploy=_deploy(unit=""))}
+    assert reg.deploy_targets(registry) == {}
+
+
+def test_deploy_targets_drops_entry_with_unknown_mode():
+    # mode 오타를 그냥 통과시키면 유닛 생성 단계에서 엉뚱한 파일이 만들어진다.
+    registry = {"hana": _entry(deploy=_deploy(mode="daemon"))}
+    assert reg.deploy_targets(registry) == {}
+
+
+def test_deploy_targets_includes_disabled_entry():
+    # 어댑터를 먼저 올려두고 나중에 enabled를 켜는 운영을 허용한다.
+    registry = {"hana": _entry(enabled=False, deploy=_deploy())}
+    assert list(reg.deploy_targets(registry)) == ["hana"]

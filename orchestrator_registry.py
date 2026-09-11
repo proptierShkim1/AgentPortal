@@ -13,6 +13,10 @@ CONFIG_PATH = ROOT / "data" / "orchestrator_registry.json"
 # 호출 자체가 불가능하다. 그런 항목은 조용히 제외한다.
 REQUIRED_FIELDS = ("agent_name", "role", "when_to_use", "api_port")
 
+# 배포에 필요한 선언. 하나라도 비면 어디에 무엇을 올릴지 알 수 없으므로 제외한다.
+DEPLOY_REQUIRED_FIELDS = ("local_dir", "remote_dir", "files", "mode", "unit", "exec")
+DEPLOY_MODES = ("service", "thread")
+
 
 def load_registry() -> dict:
     if CONFIG_PATH.exists():
@@ -36,6 +40,27 @@ def enabled_agents(registry: dict) -> dict:
         if not entry.get("enabled"):
             continue
         if any(not entry.get(field) for field in REQUIRED_FIELDS):
+            continue
+        result[key] = entry
+    return result
+
+
+def deploy_targets(registry: dict) -> dict:
+    """배포 정보가 온전히 선언된 항목만 돌려준다.
+
+    deploy 블록이 없는 항목은 오류가 아니라 '로컬 전용 에이전트'로 보고 조용히
+    제외한다. enabled는 보지 않는다 — 어댑터를 먼저 올려두고 나중에 켜는 운영이
+    가능해야 한다."""
+    result = {}
+    for key, entry in registry.items():
+        if not isinstance(entry, dict):
+            continue
+        dep = entry.get("deploy")
+        if not isinstance(dep, dict):
+            continue
+        if any(not dep.get(field) for field in DEPLOY_REQUIRED_FIELDS):
+            continue
+        if dep.get("mode") not in DEPLOY_MODES:
             continue
         result[key] = entry
     return result
