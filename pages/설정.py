@@ -6,6 +6,9 @@ from dotenv import load_dotenv
 from agents_data import AGENTS
 from visibility_config import load_visibility, save_visibility, sort_by_order
 from access_control import is_admin
+from orchestrator_registry import load_registry, deploy_targets
+from orchestrator_executor import check_health
+import adapter_deploy as ad
 
 ROOT = Path(__file__).parent.parent
 load_dotenv(ROOT / ".env")
@@ -203,3 +206,95 @@ else:
                 ssh2.close()
             except Exception as e:
                 st.error(f"오류: {e}")
+
+
+# ── 어댑터 배포 ─────────────────────────────────────────────
+# 포털 배포와 분리한다. 한 버튼에 묶으면 포털을 한 줄 고쳐 배포할 때마다 사내에서
+# 쓰는 렉스·폴리가 재시작된다.
+st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+st.subheader("🔌 어댑터 배포")
+
+_targets = deploy_targets(load_registry())
+_HOME = f"/home/{_DEPLOY_USER}"
+
+
+def _adapter_run_factory(ssh):
+    # adapter_deploy는 run(cmd, timeout) 규약을 기대한다. 기존 _ssh_run은 ssh를
+    # 첫 인자로 받으므로 감싸서 넘긴다.
+    def _run(cmd, timeout=120):
+        return _ssh_run(ssh, cmd, timeout=timeout)
+    return _run
+
+
+def _adapter_action(keys, do_restart):
+    box = st.empty()
+    lines = []
+
+    def log(msg):
+        lines.append(msg)
+        box.code("\n".join(lines[-60:]), language=None)
+
+    try:
+        ssh = _ssh_connect()
+        run = _adapter_run_factory(ssh)
+        sftp = ssh.open_sftp()
+        for key in keys:
+            entry = _targets[key]
+            log(f"\n--- {key} ({entry['agent_name']}) ---")
+            if do_restart:
+                if ad.restart_unit(run, entry, _HOME, log) and ad.needs_first_visit(entry):
+                    log("⚠️ Streamlit은 누군가 페이지를 열어야 app.py를 실행합니다.")
+                    log("   해당 에이전트 화면을 한 번 열고 상태를 새로고침하세요.")
+            else:
+                ad.upload_files(sftp, run, entry, ROOT, _HOME, log)
+                if ad.install_pip(sftp, run, entry, _HOME, log):
+                    ad.register_unit(sftp, run, entry, _HOME, log)
+        sftp.close()
+        ssh.close()
+        log("\n완료")
+    except Exception as e:
+        log(f"\n❌ 오류: {e}")
+
+
+if not _DEPLOY_HOST:
+    st.info(".env에 DEPLOY_HOST가 없어 어댑터 배포를 할 수 없습니다.")
+elif not _targets:
+    st.info("레지스트리에 deploy 블록이 선언된 항목이 없습니다.")
+else:
+    st.caption(f"대상: 배포 서버 `{_DEPLOY_HOST}` · 업로드와 재시작은 분리돼 있습니다.")
+    _selected = []
+    for _key, _entry in _targets.items():
+        c_sel, c_name, c_state, c_up, c_re = st.columns([0.6, 2, 2, 1, 1])
+        with c_sel:
+            if st.checkbox("선택", value=False, key=f"ad_sel_{_key}", label_visibility="collapsed"):
+                _selected.append(_key)
+        with c_name:
+            _warn = " ⚠️재시작=사용자 끊김" if _entry["deploy"]["mode"] == "thread" else ""
+            st.markdown(f"**{_entry['agent_name']}** `{_key}` · {_entry['api_port']}{_warn}")
+        with c_state:
+            st.caption(st.session_state.get(f"ad_state_{_key}", "상태 미확인"))
+        with c_up:
+            if st.button("업로드", key=f"ad_up_{_key}", use_container_width=True):
+                _adapter_action([_key], do_restart=False)
+        with c_re:
+            if st.button("재시작", key=f"ad_re_{_key}", use_container_width=True):
+                _adapter_action([_key], do_restart=True)
+
+    c_a, c_b, c_c = st.columns(3)
+    with c_a:
+        if st.button("선택 업로드", use_container_width=True, disabled=not _selected):
+            _adapter_action(_selected, do_restart=False)
+    with c_b:
+        if st.button("선택 재시작", use_container_width=True, disabled=not _selected):
+            _adapter_action(_selected, do_restart=True)
+    with c_c:
+        if st.button("🔄 상태 새로고침", use_container_width=True):
+            # 현재 환경이 아니라 항상 배포 서버를 본다.
+            for _key, _entry in _targets.items():
+                _h = check_health(_entry, _DEPLOY_HOST)
+                if _h["ok"]:
+                    _counts = ", ".join(f"{k} {v}" for k, v in _h["corpus_counts"].items())
+                    st.session_state[f"ad_state_{_key}"] = f"🟢 {_counts or '정상'}"
+                else:
+                    st.session_state[f"ad_state_{_key}"] = f"🔴 {_h['error']}"
+            st.rerun()
