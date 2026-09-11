@@ -184,6 +184,23 @@ GET  /health  -> {ok, corpus_counts{}}
 > lex > policy > hana > radar 순이라, 여유가 적으면 가벼운 것부터 골라 켜세요.
 > 런처가 여유 3GB 미만이면 경고합니다.
 
+### 배포 서버에서의 어댑터
+
+가상화 서버에서는 user systemd 서비스로 상주합니다(`sudo` 없이 `linger=yes`).
+
+| 키 | 유닛 | 기동 대상 |
+|---|---|---|
+| `lex` | `lexagent.service` | 앱 자체(어댑터 스레드 포함) |
+| `policy` | `policyagent.service` | 앱 자체(어댑터 스레드 포함) |
+| `hana` | `hana-adapter.service` | 어댑터만 |
+| `radar` | `radar-adapter.service` | 어댑터만 |
+
+갱신은 설정 페이지의 `🔌 어댑터 배포`에서 합니다. 업로드와 재시작이 분리돼 있어,
+올려두었다가 업무 시간이 끝난 뒤 재시작할 수 있습니다. 렉스·폴리는 재시작 후
+페이지를 한 번 열어야 어댑터가 뜹니다. 설치 패키지는 레지스트리 `deploy.pip`에
+적힌 것만 개별로 깔며, `-r requirements.txt`는 쓰지 않습니다 — 돌고 있는 앱의
+streamlit 핀까지 움직이기 때문입니다.
+
 ### 알아둘 점
 
 - **루트 모듈을 고치면 포털을 재시작해야 합니다.** Streamlit은 `pages/*.py`만 매번 다시
