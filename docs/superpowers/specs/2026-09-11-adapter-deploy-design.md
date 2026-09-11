@@ -214,9 +214,10 @@ Streamlit은 누군가 페이지를 열어야 `app.py`를 실행한다. 따라�
 
 ## 키와 환경변수
 
-서버 `PolicyAgent`에 `.env`가 없다. 폴리 어댑터가 환경변수를 읽는다면 여기서 걸리므로,
-업로드 전에 로컬 `api.py`가 읽는 변수를 확인하고 필요한 것만 서버
-`PolicyAgent/.env`로 올린다.
+서버 `PolicyAgent`에 `.env`가 없다. **확인 결과 문제가 되지 않는다** —
+`PolicyAgent/app.py:8`이 `load_dotenv(../LexAgent/.env)`로 렉스의 `.env`를 읽고,
+`api.py` 자체는 환경변수를 직접 읽지 않는다. 서버 `LexAgent/.env`는 존재한다.
+폴리 리포에 `.env`를 따로 올릴 필요가 없다.
 
 포털 자신의 `ANTHROPIC_API_KEY`(라우터·합성기용)는 기존 배포 플로우가 `.env`를 올리므로
 해결된다. 같은 파일에 `DEPLOY_PASS`가 함께 실리는 현재 구조는 이 작업에서 바꾸지 않는다.
