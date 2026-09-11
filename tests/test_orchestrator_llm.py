@@ -7,6 +7,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import orchestrator_llm as llm
+import orchestrator_llm
 
 
 class _Block:
@@ -433,3 +434,60 @@ def test_missing_finish_reason_is_not_treated_as_truncation(monkeypatch):
     assert llm.call_text(
         "system", "user", gemini_factory=_trunc_factory(_TruncResponse("본문")),
     ) == "본문"
+
+
+class _BoomAnthropic:
+    """크레딧 소진처럼 Anthropic이 실패하는 상황."""
+
+    def __init__(self, message="credit balance is too low"):
+        self.message = message
+
+        class _Messages:
+            def create(_self, **kwargs):
+                raise RuntimeError(self.message)
+
+        self.messages = _Messages()
+
+
+def test_both_providers_failing_raises_llm_unavailable(monkeypatch):
+    # Claude 실패가 print로만 남으면(Streamlit이 stdout을 버퍼링한다) 왜 안 되는지
+    # 아무도 알 수 없다. 두 공급자의 원인을 한 예외에 담는다.
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setenv("GEMINI_API_KEYS", "g1")
+    monkeypatch.setattr(orchestrator_llm, "_anthropic_client",
+                        lambda: _BoomAnthropic("credit balance is too low"))
+
+    def _boom_gemini(*args, **kwargs):
+        raise RuntimeError("429 RESOURCE_EXHAUSTED")
+
+    monkeypatch.setattr(orchestrator_llm, "_call_gemini", _boom_gemini)
+
+    try:
+        orchestrator_llm.call_text("sys", "user")
+    except orchestrator_llm.LLMUnavailable as e:
+        assert "credit balance" in e.claude_error
+        assert "RESOURCE_EXHAUSTED" in e.gemini_error
+        assert "Claude" in str(e) and "Gemini" in str(e)
+    else:
+        raise AssertionError("LLMUnavailable이 나야 한다")
+
+
+def test_gemini_success_after_claude_failure_still_returns_answer(monkeypatch):
+    # 폴백이 동작하는 경우까지 막으면 안 된다.
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setenv("GEMINI_API_KEYS", "g1")
+    monkeypatch.setattr(orchestrator_llm, "_anthropic_client", lambda: _BoomAnthropic())
+    monkeypatch.setattr(orchestrator_llm, "_call_gemini",
+                        lambda *a, **k: "제미나이 응답")
+    assert orchestrator_llm.call_text("sys", "user") == "제미나이 응답"
+
+
+def test_last_fallback_reason_is_recorded(monkeypatch):
+    # 화면에서 "Claude가 왜 안 됐는지"를 보여줄 수 있어야 한다.
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setenv("GEMINI_API_KEYS", "g1")
+    monkeypatch.setattr(orchestrator_llm, "_anthropic_client",
+                        lambda: _BoomAnthropic("credit balance is too low"))
+    monkeypatch.setattr(orchestrator_llm, "_call_gemini", lambda *a, **k: "ok")
+    orchestrator_llm.call_text("sys", "user")
+    assert "credit balance" in orchestrator_llm.last_fallback_reason()

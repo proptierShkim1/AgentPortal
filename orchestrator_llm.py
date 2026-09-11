@@ -196,26 +196,60 @@ def _call_gemini(system: str, user: str, schema, max_tokens: int, gemini_factory
     raise RuntimeError(f"Gemini 키 전부 실패. 마지막 오류: {last_error}")
 
 
+class LLMUnavailable(RuntimeError):
+    """두 공급자가 모두 실패했다. 각각의 원인을 함께 들고 다닌다.
+
+    폴백을 print로만 남기면 Streamlit이 stdout을 버퍼링해서 로그에 아무것도
+    안 남고, 화면에는 Gemini 오류 원문만 뜬다. 실제로 'Anthropic 크레딧 소진 →
+    Gemini 무료 한도 초과'가 "알 수 없는 오류"로 보인 적이 있다."""
+
+    def __init__(self, claude_error: str, gemini_error: str):
+        self.claude_error = claude_error
+        self.gemini_error = gemini_error
+        super().__init__(
+            f"Claude와 Gemini 모두 실패했습니다.\n"
+            f"· Claude: {claude_error}\n"
+            f"· Gemini: {gemini_error}"
+        )
+
+
+_last_fallback_reason = ""
+
+
+def last_fallback_reason() -> str:
+    """직전 호출에서 Claude 대신 Gemini를 쓴 이유. 없으면 빈 문자열."""
+    return _last_fallback_reason
+
+
 def _call(system: str, user: str, schema, max_tokens: int, client, gemini_factory) -> str:
     """Anthropic 우선, 실패하거나 키가 없으면 Gemini.
 
     client가 명시적으로 주어지면 그것을 그대로 쓴다(테스트의 주입이 환경변수보다
     우선한다)."""
+    global _last_fallback_reason
     with _llm_semaphore:
         if client is not None:
             return _call_anthropic(system, user, schema, max_tokens, client)
 
+        claude_error = ""
         if os.getenv("ANTHROPIC_API_KEY"):
             try:
-                return _call_anthropic(
+                result = _call_anthropic(
                     system, user, schema, max_tokens, _anthropic_client()
                 )
+                _last_fallback_reason = ""
+                return result
             except Exception as e:
-                print(f"Claude 오류: {e} → Gemini로 전환")
+                claude_error = f"{type(e).__name__}: {e}"
         else:
-            print("ANTHROPIC_API_KEY 없음 → Gemini 사용")
+            claude_error = "ANTHROPIC_API_KEY가 설정되지 않았습니다."
 
-        return _call_gemini(system, user, schema, max_tokens, gemini_factory)
+        _last_fallback_reason = claude_error
+        print(f"Claude 오류: {claude_error} → Gemini로 전환", flush=True)
+        try:
+            return _call_gemini(system, user, schema, max_tokens, gemini_factory)
+        except Exception as e:
+            raise LLMUnavailable(claude_error, f"{type(e).__name__}: {e}") from e
 
 
 def call_json(system: str, user: str, schema: dict, max_tokens: int = 2000,

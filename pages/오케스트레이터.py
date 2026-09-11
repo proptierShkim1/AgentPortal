@@ -11,6 +11,7 @@ from orchestrator_router import route
 from orchestrator_executor import ask_agents, check_health
 from orchestrator_synth import synthesize, direct_answer
 import orchestrator_sessions as sessions_store
+from orchestrator_llm import LLMUnavailable, last_fallback_reason
 
 
 def _run_llm_step(step_desc: str, fn, *args, **kwargs):
@@ -21,7 +22,18 @@ def _run_llm_step(step_desc: str, fn, *args, **kwargs):
     질문은 이미 세션 파일에 사용자 메시지로 저장돼 있으므로, 실패 시 답 없는
     질문만 남지 않도록 오류 문구를 assistant 메시지로 이어 붙인 뒤 멈춘다."""
     try:
-        return fn(*args, **kwargs)
+        result = fn(*args, **kwargs)
+        # Claude가 죽어 Gemini로 넘어갔다면 조용히 넘어가지 않고 알린다 — 무료
+        # 티어라 곧 한도에 걸리므로, 그 전에 크레딧 문제를 알아야 한다.
+        reason = last_fallback_reason()
+        if reason:
+            st.warning(f"Claude 대신 Gemini로 답했습니다. Claude 실패 사유: {reason[:200]}")
+        return result
+    except LLMUnavailable as e:
+        msg = (f"{step_desc}에 쓸 LLM이 모두 막혀 있습니다.\n\n"
+               f"- Claude: {e.claude_error[:200]}\n"
+               f"- Gemini: {e.gemini_error[:200]}\n\n"
+               "Anthropic 크레딧을 충전하거나 Gemini 키 한도를 확인해주세요.")
     except anthropic.AuthenticationError:
         msg = (f"{step_desc} 중 인증 오류가 발생했습니다. "
                "`.env`에 `ANTHROPIC_API_KEY`를 설정해야 합니다.")
