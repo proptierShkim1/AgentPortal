@@ -334,3 +334,25 @@ def test_remote_health_reports_error_on_unparsable_body():
     run = FakeRun({"curl": ("<html>502</html>", "", 0)})
     result = ad.remote_health(run, _entry())
     assert result["ok"] is False
+
+
+def test_unit_text_warms_streamlit_for_thread_mode():
+    # Streamlit은 접속이 있어야 app.py를 실행한다. 재부팅 후 아무도 안 열면
+    # 어댑터 스레드가 영영 안 뜬다.
+    entry = _entry(mode="thread", exec="venv/bin/python -m streamlit run app.py --server.port 9001")
+    text = ad.unit_text(entry, HOME)
+    assert "ExecStartPost" in text
+    assert "127.0.0.1:9001" in text
+
+
+def test_unit_text_warmup_never_fails_the_unit():
+    # ExecStartPost가 실패하면 유닛이 failed가 되고 Restart=on-failure가 물린다.
+    # 워머는 무슨 일이 있어도 성공으로 끝나야 한다.
+    entry = _entry(mode="thread", exec="venv/bin/python -m streamlit run app.py --server.port 9001")
+    text = ad.unit_text(entry, HOME)
+    assert "exit 0" in text
+
+
+def test_unit_text_has_no_warmup_for_service_mode():
+    # 별도 프로세스 어댑터는 기동하면 바로 listen한다. 워머가 필요 없다.
+    assert "ExecStartPost" not in ad.unit_text(_entry(), HOME)

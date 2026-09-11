@@ -56,15 +56,39 @@ def unit_path(entry: dict, home: str) -> str:
     return f"{home}/.config/systemd/user/{entry['deploy']['unit']}"
 
 
+def warmup_line(entry: dict) -> str:
+    """thread 모드 유닛에 붙일 ExecStartPost.
+
+    Streamlit은 접속이 있어야 app.py를 실행하므로, 서비스가 떠 있어도 아무도
+    페이지를 열지 않으면 어댑터 스레드가 뜨지 않는다. 재부팅 후 오케스트레이터가
+    "응답 없음"만 내는 상황을 막으려고 기동 직후 한 번 긁어준다.
+
+    무슨 일이 있어도 exit 0으로 끝난다 — ExecStartPost가 실패하면 유닛이 failed가
+    되고 Restart=on-failure가 물려 재시작 루프가 된다."""
+    if entry["deploy"]["mode"] != "thread":
+        return ""
+    port = unit_port(entry)
+    if port is None:
+        return ""
+    probe = (f"for i in $(seq 30); do "
+             f"curl -sf -m 3 -o /dev/null http://127.0.0.1:{port}/ && exit 0; "
+             f"sleep 2; done; exit 0")
+    return f"ExecStartPost=/bin/sh -c '{probe}'\n"
+
+
 def unit_text(entry: dict, home: str) -> str:
     dep = entry["deploy"]
     workdir = remote_dir(entry, home)
-    return UNIT_TEMPLATE.format(
+    text = UNIT_TEMPLATE.format(
         description=dep.get("description") or dep["unit"],
         workdir=workdir,
         exec_start=f"{workdir}/{dep['exec']}",
         logfile=f"{workdir}/{dep.get('log') or 'adapter.log'}",
     )
+    warm = warmup_line(entry)
+    if warm:
+        text = text.replace("Restart=on-failure", warm + "Restart=on-failure", 1)
+    return text
 
 
 def backup_name(remote_path: str, now: datetime = None) -> str:
