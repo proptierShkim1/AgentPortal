@@ -143,3 +143,17 @@ def test_deploy_targets_includes_disabled_entry():
     # 어댑터를 먼저 올려두고 나중에 enabled를 켜는 운영을 허용한다.
     registry = {"hana": _entry(enabled=False, deploy=_deploy())}
     assert list(reg.deploy_targets(registry)) == ["hana"]
+
+
+def test_real_registry_declares_four_deploy_targets():
+    # 실제 파일이 계획대로 선언돼 있는지 — 오타로 조용히 빠지는 것을 잡는다.
+    targets = reg.deploy_targets(reg.load_registry())
+    assert sorted(targets) == ["hana", "lex", "policy", "radar"]
+
+
+def test_real_registry_deploy_pins_verified_fastapi_version():
+    # fastapi 0.121.2는 starlette을 내려 streamlit을 깨뜨린다. 핀을 되돌리지 못하게 막는다.
+    for key, entry in reg.deploy_targets(reg.load_registry()).items():
+        pins = entry["deploy"].get("pip", [])
+        assert "fastapi==0.138.0" in pins, key
+        assert "uvicorn==0.42.0" in pins, key
