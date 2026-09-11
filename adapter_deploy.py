@@ -8,6 +8,7 @@ systemctl --user이고 유닛은 ~/.config/systemd/user/에 둔다.
 """
 import hashlib
 import io
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -163,8 +164,41 @@ def register_unit(sftp, run, entry: dict, home: str, log) -> bool:
     return True
 
 
+def unit_port(entry: dict):
+    """유닛이 바인딩하려는 포트.
+
+    thread 모드 유닛은 어댑터가 아니라 앱 자체를 띄우므로 exec의 --server.port가
+    실제로 잡는 포트다. service 모드는 어댑터 포트를 그대로 쓴다."""
+    dep = entry["deploy"]
+    if dep["mode"] == "thread":
+        match = re.search(r"--server\.port\s+(\d+)", dep.get("exec", ""))
+        return int(match.group(1)) if match else None
+    return entry.get("api_port")
+
+
+def port_conflict(run, entry: dict) -> bool:
+    """유닛이 쓸 포트를 지금 다른 프로세스가 잡고 있는가.
+
+    렉스·폴리를 nohup으로 띄워둔 채 서비스를 start하면 바인딩에 실패하고
+    Restart=on-failure가 5초마다 재시도하는 무한 루프가 된다(실제로 1,600회
+    반복된 적이 있다). 자기 자신이 active면 충돌이 아니다 — 그건 정상 재시작이다."""
+    port = unit_port(entry)
+    if port is None:
+        return False
+    if service_state(run, entry) == "active":
+        return False
+    out, _, _ = run(f"ss -tln 2>/dev/null | grep -c ':{port} '")
+    return out.strip() not in ("", "0")
+
+
 def restart_unit(run, entry: dict, home: str, log) -> bool:
     unit = entry["deploy"]["unit"]
+    if port_conflict(run, entry):
+        port = unit_port(entry)
+        log(f"❌ 포트 {port}을 다른 프로세스가 이미 쓰고 있어 재시작하지 않습니다.")
+        log(f"   지금 start하면 바인딩 실패 → 5초마다 재시작 루프가 됩니다.")
+        log(f"   기존 프로세스를 먼저 정리하세요: ps -eo pid,cmd | grep 'port {port}'")
+        return False
     _, err, rc = run(f"systemctl --user restart {unit}", timeout=60)
     if rc != 0:
         log(f"❌ 재시작 실패: {err.strip()}")

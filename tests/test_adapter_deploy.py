@@ -258,3 +258,51 @@ def test_needs_first_visit_true_for_thread_mode():
 
 def test_needs_first_visit_false_for_service_mode():
     assert ad.needs_first_visit(_entry(mode="service")) is False
+
+
+def test_unit_port_reads_server_port_for_thread_mode():
+    # thread 모드 유닛은 어댑터가 아니라 앱을 띄운다. 충돌하는 포트는 앱 포트다.
+    entry = _entry(mode="thread", exec="venv/bin/python -m streamlit run app.py "
+                                       "--server.address 0.0.0.0 --server.port 9001 --server.headless true")
+    assert ad.unit_port(entry) == 9001
+
+
+def test_unit_port_uses_api_port_for_service_mode():
+    assert ad.unit_port(_entry()) == 7500
+
+
+def test_port_conflict_true_when_port_held_and_service_down():
+    # 기존 nohup 프로세스가 9001을 잡고 있는 상태. 여기서 start하면 무한 재시작 루프다.
+    entry = _entry(mode="thread", exec="venv/bin/python -m streamlit run app.py --server.port 9001")
+    run = FakeRun({"is-active": ("inactive\n", "", 3), "grep -c": ("1\n", "", 0)})
+    assert ad.port_conflict(run, entry) is True
+
+
+def test_port_conflict_false_when_port_free():
+    entry = _entry(mode="thread", exec="venv/bin/python -m streamlit run app.py --server.port 9001")
+    run = FakeRun({"is-active": ("inactive\n", "", 3), "grep -c": ("0\n", "", 0)})
+    assert ad.port_conflict(run, entry) is False
+
+
+def test_port_conflict_false_when_service_itself_is_active():
+    # 자기 자신이 잡고 있는 포트는 충돌이 아니다 — 재시작이 정상 동작이다.
+    entry = _entry(mode="thread", exec="venv/bin/python -m streamlit run app.py --server.port 9001")
+    run = FakeRun({"is-active": ("active\n", "", 0), "grep -c": ("1\n", "", 0)})
+    assert ad.port_conflict(run, entry) is False
+
+
+def test_restart_unit_refuses_when_another_process_holds_the_port():
+    entry = _entry(mode="thread", exec="venv/bin/python -m streamlit run app.py --server.port 9001")
+    run = FakeRun({"is-active": ("inactive\n", "", 3), "grep -c": ("1\n", "", 0)})
+    msgs = []
+    assert ad.restart_unit(run, entry, HOME, log=msgs.append) is False
+    # 재시작을 시도조차 하지 않아야 한다. 시도하면 5초마다 재시작 루프가 된다.
+    assert not any("systemctl --user restart" in c for c in run.calls)
+    assert any("9001" in m for m in msgs)
+
+
+def test_restart_unit_proceeds_when_port_free():
+    entry = _entry(mode="thread", exec="venv/bin/python -m streamlit run app.py --server.port 9001")
+    run = FakeRun({"is-active": ("inactive\n", "", 3), "grep -c": ("0\n", "", 0)})
+    assert ad.restart_unit(run, entry, HOME, log=lambda m: None) is True
+    assert any("systemctl --user restart" in c for c in run.calls)
