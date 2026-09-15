@@ -4,7 +4,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from agents_data import AGENTS
-from visibility_config import load_visibility, save_visibility, sort_by_order
+from visibility_config import load_visibility, save_visibility, sort_by_order, move_agent
 from access_control import is_admin
 from orchestrator_registry import load_registry, deploy_targets
 import adapter_deploy as ad
@@ -20,27 +20,50 @@ st.title("⚙️ 설정")
 
 # ── 카드 노출 설정 ──────────────────────────────────────────
 st.subheader("🖥️ 카드 노출 설정")
-st.caption("로컬 화면과 배포(가상화 서버) 화면에 각각 독립적으로 노출 여부를 설정하고, 포털 카드 순서를 지정합니다.")
+st.caption("로컬 화면과 배포(가상화 서버) 화면에 각각 독립적으로 노출 여부를 설정합니다. 카드 순서는 ▲▼로 바꿉니다.")
 
 _visibility = load_visibility()
+# 화면에 보이는 순서 그대로 줄을 세운다 — ▲▼가 "한 칸 위/아래"로 읽히려면
+# 목록 자체가 포털과 같은 순서여야 한다.
+_ordered_agents = sort_by_order(AGENTS, _visibility)
+_last_pos = len(_ordered_agents) - 1
+
+# 라벨을 행마다 반복하지 않고 헤더 한 줄로 올린다.
+_VIS_COLS = [0.5, 0.5, 4, 1, 1]
+_hdr = st.columns(_VIS_COLS, vertical_alignment="center")
+_hdr[0].markdown("**순서**")
+_hdr[3].markdown("**로컬**")
+_hdr[4].markdown("**배포**")
+
 _new_visibility = {}
 
-for _i, _agent in enumerate(AGENTS):
+for _pos, _agent in enumerate(_ordered_agents):
     _name = _agent["name"]
-    _current = _visibility.get(_name, {"visible_local": True, "visible_deploy": True, "order": _i})
-    col_label, col_order, col_local, col_deploy = st.columns([2, 1, 1, 1])
-    with col_label:
-        st.markdown(f"**{_agent['icon']} {_name}** ({_agent['nickname']})")
-    with col_order:
-        _order = st.number_input("순서", min_value=0, step=1, value=_current.get("order", _i), key=f"vis_order_{_name}")
-    with col_local:
-        _vl = st.checkbox("로컬 노출", value=_current.get("visible_local", True), key=f"vis_local_{_name}")
-    with col_deploy:
-        _vd = st.checkbox("배포 노출", value=_current.get("visible_deploy", True), key=f"vis_deploy_{_name}")
-    _new_visibility[_name] = {"visible_local": _vl, "visible_deploy": _vd, "order": _order}
+    _current = _visibility.get(_name, {"visible_local": True, "visible_deploy": True, "order": _pos})
+    col_up, col_down, col_label, col_local, col_deploy = st.columns(
+        _VIS_COLS, vertical_alignment="center"
+    )
+    # 이동은 위젯 상태가 아니라 파일 상태를 옮긴다 — 체크박스 변경은 아래에서
+    # 이미 저장되므로, 여기서 반쯤 만들어진 _new_visibility를 쓰면 안 된다.
+    if col_up.button("▲", key=f"vis_up_{_name}", disabled=(_pos == 0), help="위로"):
+        save_visibility(move_agent(_visibility, AGENTS, _name, -1))
+        st.toast(f"{_agent['nickname']} 순서 변경됨")
+        st.rerun()
+    if col_down.button("▼", key=f"vis_down_{_name}", disabled=(_pos == _last_pos), help="아래로"):
+        save_visibility(move_agent(_visibility, AGENTS, _name, 1))
+        st.toast(f"{_agent['nickname']} 순서 변경됨")
+        st.rerun()
+    col_label.markdown(f"{_agent['icon']} **{_name}** ({_agent['nickname']})")
+    _vl = col_local.checkbox("로컬 노출", value=_current.get("visible_local", True),
+                             key=f"vis_local_{_name}", label_visibility="collapsed")
+    _vd = col_deploy.checkbox("배포 노출", value=_current.get("visible_deploy", True),
+                              key=f"vis_deploy_{_name}", label_visibility="collapsed")
+    _new_visibility[_name] = {"visible_local": _vl, "visible_deploy": _vd,
+                              "order": _current.get("order", _pos)}
 
 if _new_visibility != _visibility:
     save_visibility(_new_visibility)
+    st.toast("노출 설정 저장됨")
 
 st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
