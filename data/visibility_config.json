@@ -53,5 +53,10 @@
     "visible_local": true,
     "visible_deploy": true,
     "order": 7
+  },
+  "DBMS Agent": {
+    "visible_local": true,
+    "visible_deploy": true,
+    "order": 8
   }
 }

@@ -109,4 +109,14 @@ AGENTS = [
         "icon": "📡",
         "color": "#2ECC71",
     },
+    {
+        "name": "DBMS Agent",
+        "nickname": "디엠",
+        "desc": "DBMS 운영 가이드 RAG",
+        "detail": "가이드·문서 폴더를 색인해 DBMS 운영 질문에 근거 기반 답변",
+        "port": 8510,
+        "path": r"C:\Users\USER\Desktop\Project Agent\DBMS Agent",
+        "icon": "🗄️",
+        "color": "#0891B2",
+    },
 ]
