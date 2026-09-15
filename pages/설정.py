@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 
 from agents_data import AGENTS
 from visibility_config import load_visibility, save_visibility, sort_by_order, move_agent
+from agent_host import is_deployed
 from access_control import is_admin
 from orchestrator_registry import load_registry, deploy_targets
 import adapter_deploy as ad
@@ -20,7 +21,15 @@ st.title("⚙️ 설정")
 
 # ── 카드 노출 설정 ──────────────────────────────────────────
 st.subheader("🖥️ 카드 노출 설정")
-st.caption("로컬 화면과 배포(가상화 서버) 화면에 각각 독립적으로 노출 여부를 설정합니다. 카드 순서는 ▲▼로 바꿉니다.")
+# 이 화면이 배포 서버에서 열렸는지. 배포 서버에서는 편집도 배포도 의미가 없다 —
+# 노출 설정은 배포 때 로컬 파일로 덮어써지고, 배포 버튼은 자기 자신에게 SSH를 건다.
+_IS_DEPLOYED = is_deployed()
+
+if _IS_DEPLOYED:
+    st.caption("배포 서버 화면이라 읽기 전용입니다. 노출·순서 변경과 배포는 **로컬 포털**에서 하세요 — "
+               "배포할 때 로컬의 설정 파일이 이 서버를 덮어쓰므로, 여기서 고쳐도 다음 배포에 지워집니다.")
+else:
+    st.caption("로컬 화면과 배포(가상화 서버) 화면에 각각 독립적으로 노출 여부를 설정합니다. 카드 순서는 ▲▼로 바꿉니다.")
 
 _visibility = load_visibility()
 # 화면에 보이는 순서 그대로 줄을 세운다 — ▲▼가 "한 칸 위/아래"로 읽히려면
@@ -45,27 +54,43 @@ for _pos, _agent in enumerate(_ordered_agents):
     )
     # 이동은 위젯 상태가 아니라 파일 상태를 옮긴다 — 체크박스 변경은 아래에서
     # 이미 저장되므로, 여기서 반쯤 만들어진 _new_visibility를 쓰면 안 된다.
-    if col_up.button("▲", key=f"vis_up_{_name}", disabled=(_pos == 0), help="위로"):
+    if col_up.button("▲", key=f"vis_up_{_name}",
+                     disabled=(_IS_DEPLOYED or _pos == 0), help="위로"):
         save_visibility(move_agent(_visibility, AGENTS, _name, -1))
         st.toast(f"{_agent['nickname']} 순서 변경됨")
         st.rerun()
-    if col_down.button("▼", key=f"vis_down_{_name}", disabled=(_pos == _last_pos), help="아래로"):
+    if col_down.button("▼", key=f"vis_down_{_name}",
+                       disabled=(_IS_DEPLOYED or _pos == _last_pos), help="아래로"):
         save_visibility(move_agent(_visibility, AGENTS, _name, 1))
         st.toast(f"{_agent['nickname']} 순서 변경됨")
         st.rerun()
     col_label.markdown(f"{_agent['icon']} **{_name}** ({_agent['nickname']})")
     _vl = col_local.checkbox("로컬 노출", value=_current.get("visible_local", True),
-                             key=f"vis_local_{_name}", label_visibility="collapsed")
+                             key=f"vis_local_{_name}", label_visibility="collapsed",
+                             disabled=_IS_DEPLOYED)
     _vd = col_deploy.checkbox("배포 노출", value=_current.get("visible_deploy", True),
-                              key=f"vis_deploy_{_name}", label_visibility="collapsed")
+                              key=f"vis_deploy_{_name}", label_visibility="collapsed",
+                              disabled=_IS_DEPLOYED)
     _new_visibility[_name] = {"visible_local": _vl, "visible_deploy": _vd,
                               "order": _current.get("order", _pos)}
 
-if _new_visibility != _visibility:
+# 배포 서버에서는 저장 자체를 하지 않는다. 위젯이 비활성이라 값은 안 바뀌지만,
+# 설정 파일에 빠진 항목이 있으면 기본값이 채워지며 파일이 쓰여진다 — 그러면
+# 로컬과 서버의 파일이 조용히 갈라진다.
+if not _IS_DEPLOYED and _new_visibility != _visibility:
     save_visibility(_new_visibility)
     st.toast("노출 설정 저장됨")
 
 st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+
+# ── 아래는 로컬 전용 ────────────────────────────────────────
+# 배포 서버에서 "서버 배포"를 누르면 자기 자신에게 SSH로 재배포·재시작이 걸려
+# 돌아가던 앱이 끊긴다. .env가 함께 업로드되어 DEPLOY_HOST가 서버에도 있으므로
+# 버튼이 비활성조차 아니다. 어댑터 배포도 로컬 리포의 파일을 올리는 동작이라
+# 서버에서는 성립하지 않는다. 섹션을 그리지 않고 여기서 멈춘다.
+if _IS_DEPLOYED:
+    st.info("서버 배포와 어댑터 배포는 **로컬 포털**에서만 할 수 있습니다. 이 화면은 배포 서버입니다.")
+    st.stop()
 
 # ── 서버 배포 ──────────────────────────────────────────────
 st.subheader("🚀 서버 배포")
