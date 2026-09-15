@@ -14,21 +14,6 @@
     "visible_deploy": true,
     "order": 2
   },
-  "ModelTLab": {
-    "visible_local": true,
-    "visible_deploy": false,
-    "order": 10
-  },
-  "gov_kr": {
-    "visible_local": true,
-    "visible_deploy": false,
-    "order": 11
-  },
-  "SonarGuard": {
-    "visible_local": true,
-    "visible_deploy": false,
-    "order": 12
-  },
   "AIpartner(세무)": {
     "visible_local": true,
     "visible_deploy": false,
@@ -44,19 +29,34 @@
     "visible_deploy": true,
     "order": 5
   },
-  "DailyBot(6F)": {
+  "AI RADAR": {
     "visible_local": true,
     "visible_deploy": true,
     "order": 6
   },
-  "AI RADAR": {
+  "DBMS Agent": {
     "visible_local": true,
     "visible_deploy": true,
     "order": 7
   },
-  "DBMS Agent": {
+  "DailyBot(6F)": {
     "visible_local": true,
     "visible_deploy": true,
     "order": 8
+  },
+  "ModelTLab": {
+    "visible_local": true,
+    "visible_deploy": false,
+    "order": 9
+  },
+  "gov_kr": {
+    "visible_local": true,
+    "visible_deploy": false,
+    "order": 10
+  },
+  "SonarGuard": {
+    "visible_local": true,
+    "visible_deploy": false,
+    "order": 11
   }
 }
